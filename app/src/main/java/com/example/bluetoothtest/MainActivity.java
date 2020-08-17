@@ -81,8 +81,43 @@ import static androidx.core.app.ActivityCompat.startActivityForResult;
     4. Connect to specified sockets on other devices.
     5. Transfer data to and from other devices.
     6. Manage multiple connections.
-
  */
+
+
+/*
+    In order to create a connection between two devices, we must implement both the server side and
+    client side mechanisms, because one device must open a server socket, and the other one must
+    initiate the connection using the server device's MAC address.
+
+    The server receives socket information when an incoming connection is accepted. The client provides
+    socket information when it opens an RFCOMM channel to the server. The server and client are
+    considered connected to each other when they each have a connected BluetoothSocket on the same
+    RFCOMM channel. Now, each device can obtain input and output streams, and transfer data.
+ */
+
+/*
+    We can prepare each device as a server so that each device has a server socket open and is
+    listening for connections. Now, either device can initiate a connection with the other and
+    become the client. Or one device can explicitly host the connection and open a server socket on
+    demand, and the other device initiates the connection.
+ */
+
+/*
+    When we want to connect two devices, one must act as a server by holding an open
+    BluetoothServerSocket. BluetoothServerSocket listens for incoming connection requests and provide
+    a connected BluetoothSocket once a request is accepted. The accept() call is blocking and hence
+    should not be executed on the UI thread. It usually makes sense to do all work that involves a
+    BluetoothServerSocket and BluetoothSocket in a new thread managed by the application.
+
+    To abort a blocked call such as accept(), call close() on the BluetoothServerSocket or
+    BluetoothSocket from another thread. All methods in BluetoothServerSocket and BluetoothSocket
+    are thread safe.
+
+    To use a matching UUID, hard-code the UUID string into your application, and then reference it
+    from both the server and client code.
+ */
+
+
 public class MainActivity extends AppCompatActivity{
     private static final String TAG = "MainActivity";
 
@@ -90,9 +125,13 @@ public class MainActivity extends AppCompatActivity{
     private BluetoothAdapter myBluetoothAdapter;
 
     // Locally defined integer constant that must be greater than 0.
-    private static final int REQUEST_ENABLE_BT = 100;
-    private static final int REQUEST_DISCOVER_BT = 101;
-    public static final int DISCOVERABLE_DURATION = 300; // 5 minutes, by default it is 2 minutes
+    public static final int REQUEST_ENABLE_BT = 100;
+    public static final int REQUEST_DISCOVER_BT = 101;
+
+    // By default, we can make the device discoverable for 2 minutes. Here we have used 5 minutes.
+    // The longest possible discoverable time is 1 hour. If the DISCOVERABLE_DURATION is set 0 then
+    // the device is always discoverable.
+    public static final int DISCOVERABLE_DURATION = 300;
 
     // UI items
     Button onButton, offButton, discoverButton, scanButton;
@@ -109,16 +148,14 @@ public class MainActivity extends AppCompatActivity{
         myBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         if(myBluetoothAdapter == null) {
             Utils.toast(this, "Bluetooth is not available on this device.");
+
+            // TODO Make sure to change this finish into return or similar to exit out of bluetooth functions.
             finish();
         }
 
-        // start the Bluetooth broadcast receiver
+        // Get an object of Bluetooth Broadcast Receiver class. This broadcast receiver monitors the
+        // state of the Bluetooth module.
         myBTCastReceiver = new BroadCastReceiver_Bluetooth(getApplicationContext());
-
-        // register the BroadcastReceiver for the ACTION_FOUND intent of the device discover function.
-        // make sure to unregister the receiver in the onDestroy function
-        IntentFilter discoverIntentFilter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-        registerReceiver(bluetoothDeviceFoundReceiver, discoverIntentFilter);
 
         // find the UI elements
         onButton = (Button) findViewById(R.id.onSwitch);
@@ -167,19 +204,19 @@ public class MainActivity extends AppCompatActivity{
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBtIntent, this.REQUEST_ENABLE_BT);
 
-            // REQUEST_ENABLE_BT is returned back by the system in onActivityResult as the request
-            // code parameter.
+/*           REQUEST_ENABLE_BT is returned back by the system in onActivityResult as the request
+             code parameter.
 
-            // If enabling Bluetooth succeeds, the activity will receives the RESULT_OK result
-            // code in the onActivityResult() callback. If the Bluetooth was not enabled due to
-            // an error (or the user responded "No") then the result code is RESULT_CANCELED.
+             If enabling Bluetooth succeeds, the activity will receives the RESULT_OK result
+             code in the onActivityResult() callback. If the Bluetooth was not enabled due to
+             an error (or the user responded "No") then the result code is RESULT_CANCELED.
 
-            // Optionally, we can listen for the ACTION_STATE_CHANGED broadcast Intent, which the
-            // system will broadcast whenever the Bluetooth state has changed. Listening for this
-            // broadcast can be useful to detect changes made to the Bluetooth state while the app
-            // is running.
+             Optionally, we can listen for the ACTION_STATE_CHANGED broadcast Intent, which the
+             system will broadcast whenever the Bluetooth state has changed. Listening for this
+             broadcast can be useful to detect changes made to the Bluetooth state while the app
+             is running.
 
-            // Also, enabling discoverability automatically enables the Bluetooth.
+             Also, enabling discoverability automatically enables the Bluetooth.*/
         }
     }
 
@@ -195,7 +232,10 @@ public class MainActivity extends AppCompatActivity{
         }
     }
 
-    // Make the Phone Bluetooth discoverable for other devices.
+    // Make the Phone Bluetooth discoverable for other devices. For connecting to remote device we
+    // don't need to make the device discoverable. Enabling discoverability is only necessary when
+    // we want the app to host a server socket that accepts incoming connections. Also, once the remote
+    // device is paired once, we don't need to make the device discoverable.
     private void makeDeviceDiscoverable() {
         if (Utils.checkBluetooth(this.myBluetoothAdapter)) {
             Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
@@ -221,7 +261,6 @@ public class MainActivity extends AppCompatActivity{
 
     The Android Bluetooth API requires the devices to be paired before an RFCOMM connection can be
     established.
-
      */
     private void scanForBluetoothDevices() {
         /*
@@ -270,6 +309,8 @@ public class MainActivity extends AppCompatActivity{
 
     /*
     The BroadcastReceiver for the ACTION_FOUND intent of the Bluetooth device scan function.
+    When a device is found by the Bluetooth scanner, this function is called with found device
+    details.
      */
     private final BroadcastReceiver bluetoothDeviceFoundReceiver = new BroadcastReceiver() {
         @Override
@@ -278,6 +319,7 @@ public class MainActivity extends AppCompatActivity{
 
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 // Discovery has found a device. Get the Bluetooth device details from the Intent.
+                // To create a connection we just need the MAC address of the discovered device.
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 String deviceName = device.getName();
                 String deviceMAC = device.getAddress();
@@ -286,41 +328,28 @@ public class MainActivity extends AppCompatActivity{
         }
     };
 
+//    BroadcastReceiver for ACTION_SCAN_MODE_CHANGED intent of the make device discoverable function.
+    private final BroadcastReceiver bluetoothDeviceDiscoverableReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
 
-    /*
-   In order to create a connection between two devices, we must implement both the server side and
-   client side mechanisms, because one device must open a server socket, and the other one must
-   initiate the connection using the server device's MAC address.
+            if (BluetoothAdapter.ACTION_SCAN_MODE_CHANGED.equals(action)) {
+                String scanMode = intent.getParcelableExtra(BluetoothAdapter.EXTRA_SCAN_MODE);
+                String previousScanMode = intent.getParcelableExtra(BluetoothAdapter.EXTRA_PREVIOUS_SCAN_MODE);
+                /*
+                These two extras can have these values:
+                    SCAN_MODE_CONNECTABLE_DISCOVERABLE : The device is in discoverable mode.
+                    SCAN_MODE_CONNECTABLE : The device isn't discoverable but can still receive connections.
+                    SCAN_MODE_NONE : The device isn't in discoverable mode and cannot receive connections.
+                */
+            }
+        }
+    };
 
-   The server receives socket information when an incoming connection is accepted. The client provides
-   socket information when it opens an RFCOMM channel to the server. The server and client are
-   considered connected to each other when they each have a connected BluetoothSocket on the same
-   RFCOMM channel. Now, each device can obtain input and output streams, and transfer data.
-     */
-
-    /*
-    We can prepare each device as a server so that each device has a server socket open and is
-    listening for connections. Now, either device can initiate a connection with the other and
-    become the client. Or one device can explicitly host the connection and open a server socket on
-    demand, and the other device initiates the connection.
-     */
-
-    /*
-    When we want to connect two devices, one must act as a server by holding an open
-    BluetoothServerSocket. BluetoothServerSocket listens for incoming connection requests and provide
-    a connected BluetoothSocket once a request is accepted. The accept() call is blocking and hence
-    should not be executed on the UI thread. It usually makes sense to do all work that involves a
-    BluetoothServerSocket and BluetoothSocket in a new thread managed by the application.
-
-    To abort a blocked call such as accept(), call close() on the BluetoothServerSocket or
-    BluetoothSocket from another thread. All methods in BluetoothServerSocket and BluetoothSocket
-    are thread safe.
-
-    To use a matching UUID, hard-code the UUID string into your application, and then reference it
-    from both the server and client code.
-     */
-
-    // Listeners for the Bluetooth events and more
+    // Listeners for the Bluetooth events and more. The function is called after Bluetooth related
+    // operations are requested. For example turning on Bluetooth, making Bluetooth device
+    // discoverable, etc.
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         switch (requestCode) {
@@ -346,16 +375,35 @@ public class MainActivity extends AppCompatActivity{
         super.onActivityResult(requestCode, resultCode, data);
     }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        // register the Bluetooth ACTION_STATE_CHANGED Broadcast Receiver : Monitors the Bluetooth
+        // module state
+        registerReceiver(myBTCastReceiver, new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED));
+
+        // register the BroadcastReceiver for the ACTION_FOUND intent of the device scan function.
+        // Calls the registered function for every Bluetooth device found while scanning.
+        registerReceiver(bluetoothDeviceFoundReceiver, new IntentFilter(BluetoothDevice.ACTION_FOUND));
+
+        // register the BroadcastReceiver for the ACTION_SCAN_MODE_CHANGED intent of the device
+        // discoverable function.
+        registerReceiver(bluetoothDeviceDiscoverableReceiver, new IntentFilter(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED));
+    }
 
     @Override
     protected void onDestroy() {
-        // unregister the bluetooth device
+        // unregister the broadcast receivers
         unregisterReceiver(bluetoothDeviceFoundReceiver);
+        unregisterReceiver(bluetoothDeviceDiscoverableReceiver);
+        unregisterReceiver(myBTCastReceiver);
+
         super.onDestroy();
     }
 
     // Function to set the text of statusText UI element
-    private void setStatusText(String newText) {
+    public void setStatusText(String newText) {
         String oldText = (String) statusText.getText();
         String total = newText + "\n" + oldText;
         statusText.setText(total);
