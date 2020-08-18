@@ -8,39 +8,13 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Handler;
 import android.os.ParcelUuid;
 import android.util.Log;
 
+import java.util.ArrayList;
 import java.util.Set;
-
-/*
-    - BluetoothAdapter represents the local Bluetooth adapter or radio and is the entry-point for all
-    Bluetooth interaction. Using this we can discover other Bluetooth devices, query a list of bonded
-    devices, instantiate a Bluetooth device using a known MAC address, and create a BluetoothServerSocket
-    to listen for communications from other devices.
-
-    - BluetoothDevice represents a remote Bluetooth device and is used to request a connection with
-    a remote device through BluetoothSocket or query information about the device such as its name,
-    address, class and bonding state.
-
-    - BluetoothSocket represents the interface for a Bluetooth socket and is the connection point
-    for data exchange with another Bluetooth device via InputStream and OutputStream.
-
-    - BluetoothServerSocket represents an open server that listens for incoming requests in order to
-    connect two Bluetooth devices. When a remote Bluetooth device makes a connection request to server
-    , BluetoothServerSocket will return a connected BluetoothSocket when the connection is accepted.
-
-    =========================================== XXX ===============================================
-    In order to use Bluetooth features, we need these permissions:
-
-     1. <uses-permission android:name="android.permission.BLUETOOTH"/>
-
-     2. <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
-
-    <!-- If the app targets Android 9 or lower we can use Coarse Location -->
-     3. <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
- */
 
 public class MyBluetoothManager {
     private static final String TAG = "MyBluetoothManager";
@@ -71,6 +45,9 @@ public class MyBluetoothManager {
 
     // Handler object used for various functions.
     private Handler myHandler;
+
+    // Array to store the found device during scanning
+    private ArrayList<BluetoothDevice> mBTDevices = new ArrayList<>();
 
     // Constructor for the class
     public MyBluetoothManager(MainActivity mainActivity) {
@@ -123,11 +100,11 @@ public class MyBluetoothManager {
     public void disableBluetooth() {
         if(Utils.checkBluetooth(myBluetoothAdapter)){
             myBluetoothAdapter.disable();
-            Utils.toast(myMAContext, "Bluetooth is disabled :)");
+            setStatusText("Bluetooth turned off");
         }
         else
         {
-            Utils.toast(myMAContext,"Bluetooth is already disabled :)");
+            Utils.toast(myMAContext,"Bluetooth is already off");
         }
     }
 
@@ -143,6 +120,8 @@ public class MyBluetoothManager {
             discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION,
                     DISCOVERABLE_DURATION);
             myMainActivity.startActivityForResult(discoverableIntent, this.REQUEST_DISCOVER_BT);
+        } else {
+            Utils.toast(myMAContext, "Turn on the Bluetooth first.");
         }
     }
 
@@ -161,6 +140,8 @@ public class MyBluetoothManager {
 
         if(Utils.checkBluetooth(myBluetoothAdapter)){
             scanForBluetoothDevices(true);
+        } else {
+            Utils.toast(myMAContext, "Turn on the Bluetooth first.");
         }
     }
 
@@ -168,7 +149,11 @@ public class MyBluetoothManager {
     Stop the scan for Bluetooth devices.
      */
     public void stopScan() {
-        scanForBluetoothDevices(false);
+        if (Utils.checkBluetooth(myBluetoothAdapter)) {
+            scanForBluetoothDevices(false);
+        } else {
+            Utils.toast(myMAContext, "Turn on the Bluetooth first.");
+        }
     }
 
     /*
@@ -191,13 +176,14 @@ public class MyBluetoothManager {
     */
     private void scanForBluetoothDevices(final boolean enable) {
         if (enable && !this.mScanning) {
-            Utils.toast(this.myMAContext, "Starting scan for devices ..");
+            mBTDevices = new ArrayList<>();
+            setStatusText("Starting scan for devices ..");
 
-            // we will use the handler to stop the scanning after some time.
+            // we will use the handler to stop the scanning after scan period set by the caller.
             this.myHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    Utils.toast(myMAContext, "Stopping the scan..");
+                    setStatusText("Stopping the scan..");
                     mScanning = false;
                     myBluetoothAdapter.cancelDiscovery();
                     stopScan();
@@ -207,55 +193,21 @@ public class MyBluetoothManager {
             // start discovery or scan for Bluetooth devices
             mScanning = true;
             myBluetoothAdapter.startDiscovery();
-        } else {
+        } else if (!enable) {
             mScanning = false;
             myBluetoothAdapter.cancelDiscovery();
         }
-
-        /*
-        Before performing device discovery, it is worth querying the set of paired devices to see if
-        the desired device is already known.
-         */
-//        Set<BluetoothDevice> pairedDevices = this.myBluetoothAdapter.getBondedDevices();
-//        if (pairedDevices.size() > 0) {
-//            setStatusText("Already paired devices are:");
-//            String [] deviceArray = new String[pairedDevices.size()];
-//            int i = 0;
-//            // if there are paired devices, then loop over them and get their attributes:
-//            for (BluetoothDevice device : pairedDevices) {
-//                deviceArray[i] = device.getName() + "\t\t " + device.getAddress();
-//                setStatusText(deviceArray[i]);
-//                i += 1;
-//            }
-//        }
-//        else {
-//            setStatusText("No paired devices found");
-//        }
-
-        /*
-        Performing device discovery consumes a lot of the Bluetooth adapters resources. After we have
-        found a device to connect to, be certain to stop discovery with cancelDiscovery before
-        attempting a connection. We should also not start discovery when connected to other devices.
-
-        In order to receive information about each device discovered, we need to register a
-        BroadcastReceiver for the ACTION_FOUND intent. The system broadcasts this intent for each
-        device. The intent contains the extra fields EXTRA_DEVICE and EXTRA_CLASS, which contain a
-        BluetoothDevice and a BluetoothClass.
-         */
-//        if (this.myBluetoothAdapter != null) {
-//            if (this.myBluetoothAdapter.startDiscovery()) {
-//                setStatusText("Device discovery started");
-//            }
-//            else
-//            {
-//                setStatusText("Failed to start device discovery");
-//            }
-//        }
-
-//        All that is needed from the BluetoothDevice object in order to initiate a connection is the
-//        MAC address.
     }
 
+    // Save a found Bluetooth device during scan in an array.
+    private void addDevice(BluetoothDevice dv) {
+        Log.d(TAG, "addDevice: " + dv.getAddress());
+        mBTDevices.add(dv);
+    }
+
+    /*
+    List the paired Bluetooth devices.
+     */
     public void listPairedDevices() {
         Set<BluetoothDevice> pairedDevices = this.myBluetoothAdapter.getBondedDevices();
         if (pairedDevices.size() > 0) {
@@ -274,8 +226,62 @@ public class MyBluetoothManager {
         }
     }
 
+    // Check if a Bluetooth device is already paired or not.
+    private boolean isDevicePaired(final String deviceMAC) {
+        Set<BluetoothDevice> pairedDevices = this.myBluetoothAdapter.getBondedDevices();
+        if (pairedDevices.size() > 0) {
+            // if there are paired devices, then loop over them and check for address match
+            for (BluetoothDevice dv : pairedDevices) {
+                if (dv.getAddress().equals(deviceMAC)) {
+                    return true;
+                }
+            }
+        }
+        else {
+            setStatusText("No paired devices found");
+        }
 
-    private void addDevice(BluetoothDevice dv) {}
+        return false;
+    }
+
+    // Given a MAC address pair with a Bluetooth device with this MAC address.
+    public void pairBluetoothDevice(final String deviceMAC) {
+        Log.d(TAG, "pairBluetoothDevice: " + deviceMAC);
+
+        // first check if the device is already paired or not.
+        if(!isDevicePaired(deviceMAC)) {
+            // device is not paired. Now scan for nearby Bluetooth devices for 10 seconds
+            stopScan();
+            startScan(10000, 0);
+
+            // post a delayed runnable for pairing after the scan is finished.
+            myHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    // check if there is a discovered device with the matching MAC address
+                    for(BluetoothDevice dv: mBTDevices) {
+                        if (dv.getAddress().equals(deviceMAC)) {
+                            Log.d(TAG, "pairBluetoothDevice: Found the device. ");
+                            // yes a device was found with the specified mac. Now bond with the device
+                            Log.d(TAG, "pairBluetoothDevice: Pairing now.. ");
+
+                            // first stop scanning if not stopped yet.
+                            stopScan();
+
+                            // try to pair with the device
+                            dv.createBond();
+
+                            // no need to loop over other devices.
+                            break;
+                        }
+                    }
+                }
+            }, 10000);
+
+        } else {
+            setStatusText("Device with MAC " + deviceMAC + " already paired.");
+        }
+    }
 
     /*
     Broadcast receiver for the ACTION_FOUND intent of Bluetooth device scan function.
@@ -297,7 +303,8 @@ public class MyBluetoothManager {
                 String deviceName = device.getName();
                 String deviceMAC = device.getAddress();
                 ParcelUuid[] uuid = device.getUuids();
-                setStatusText(deviceName + "\t " + deviceMAC);
+                setStatusText(deviceName + "\t " + deviceMAC + "\t " + device.getBondState());
+
                 if (uuid != null) {
                     setStatusText("UUID : " + uuid.toString());
                 }
@@ -316,7 +323,7 @@ public class MyBluetoothManager {
     /*
     Broadcast receiver for Bluetooth state change intent.
      */
-    private final BroadcastReceiver bluetoothStateChange = new BroadcastReceiver() {
+    private final BroadcastReceiver bluetoothStateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
@@ -325,19 +332,19 @@ public class MyBluetoothManager {
                 final int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
                 switch (state) {
                     case BluetoothAdapter.STATE_OFF:
-                        Log.d(TAG, "onReceive: Bluetooth OFF");
+                        Log.d(TAG, "bluetoothStateReceiver: STATE OFF");
                         break;
                     case BluetoothAdapter.STATE_ON:
-                        Log.d(TAG, "onReceive: Bluetooth ON");
+                        Log.d(TAG, "bluetoothStateReceiver: STATE ON");
                         break;
                     case BluetoothAdapter.STATE_TURNING_OFF:
-                        Log.d(TAG, "onReceive: Bluetooth turning OFF");
+                        Log.d(TAG, "bluetoothStateReceiver: STATE TURNING OFF");
                         break;
                     case BluetoothAdapter.STATE_TURNING_ON:
-                        Log.d(TAG, "onReceive: Bluetooth turning ON");
+                        Log.d(TAG, "bluetoothStateReceiver: STATE TURNING ON");
                         break;
                     case BluetoothAdapter.ERROR:
-                        Log.d(TAG, "onReceive: Bluetooth ERROR");
+                        Log.d(TAG, "bluetoothStateReceiver: ERROR");
                         break;
                 }
             }
@@ -346,10 +353,10 @@ public class MyBluetoothManager {
 
 
     // BroadcastReceiver for ACTION_SCAN_MODE_CHANGED intent of the make device discoverable function.
-    private final BroadcastReceiver bluetoothDeviceDiscoverableReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver bluetoothDiscoverableReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
+            final String action = intent.getAction();
 
             if (BluetoothAdapter.ACTION_SCAN_MODE_CHANGED.equals(action)) {
                 int scanMode = intent.getIntExtra(BluetoothAdapter.EXTRA_SCAN_MODE,
@@ -357,19 +364,19 @@ public class MyBluetoothManager {
 
                 switch(scanMode) {
                     case BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE:
-                        Log.d(TAG, "onReceive: SCAN MODE CONNECTABLE DISCOVERABLE");
+                        Log.d(TAG, "bluetoothDiscoverableReceiver: SCAN MODE CONNECTABLE DISCOVERABLE");
                         break;
                     case BluetoothAdapter.SCAN_MODE_CONNECTABLE:
-                        Log.d(TAG, "onReceive: SCAN MODE CONNECTABLE");
+                        Log.d(TAG, "bluetoothDiscoverableReceiver: SCAN MODE CONNECTABLE");
                         break;
                     case BluetoothAdapter.SCAN_MODE_NONE:
-                        Log.d(TAG, "onReceive: SCAN MODE NONE");
+                        Log.d(TAG, "bluetoothDiscoverableReceiver: SCAN MODE NONE");
                         break;
                     case BluetoothAdapter.STATE_CONNECTED:
-                        Log.d(TAG, "onReceive: STATE CONNECTED");
+                        Log.d(TAG, "bluetoothDiscoverableReceiver: STATE CONNECTED");
                         break;
                     case BluetoothAdapter.STATE_CONNECTING:
-                        Log.d(TAG, "onReceive: STATE CONNECTING");
+                        Log.d(TAG, "bluetoothDiscoverableReceiver: STATE CONNECTING");
                         break;
                 }
                 /*
@@ -382,12 +389,35 @@ public class MyBluetoothManager {
         }
     };
 
+    private final BroadcastReceiver blueoothPairingReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+
+            if (action.equals(BluetoothDevice.ACTION_BOND_STATE_CHANGED)) {
+                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+
+                if (device.getBondState() == BluetoothDevice.BOND_BONDED) {
+                    Log.d(TAG, "blueoothPairingReceiver: BOND BONDED");
+                }
+
+                if (device.getBondState() == BluetoothDevice.BOND_BONDING) {
+                    Log.d(TAG, "blueoothPairingReceiver: BOND BONDING");
+                }
+
+                if (device.getBondState() == BluetoothDevice.BOND_NONE) {
+                    Log.d(TAG, "blueoothPairingReceiver: BOND NONE");
+                }
+            }
+        }
+    };
+
 
     // Register the broadcast receivers for the Bluetooth
     public void registerBroadcastReceivers() {
         // register the Bluetooth ACTION_STATE_CHANGED Broadcast Receiver : Monitors the Bluetooth
         // module state
-        myMainActivity.registerReceiver(bluetoothStateChange, new IntentFilter(
+        myMainActivity.registerReceiver(bluetoothStateReceiver, new IntentFilter(
                 BluetoothAdapter.ACTION_STATE_CHANGED));
 
         // register the BroadcastReceiver for the ACTION_FOUND intent of the device scan function.
@@ -397,15 +427,20 @@ public class MyBluetoothManager {
 
         // register the BroadcastReceiver for the ACTION_SCAN_MODE_CHANGED intent of the device
         // discoverable function.
-        myMainActivity.registerReceiver(bluetoothDeviceDiscoverableReceiver,
+        myMainActivity.registerReceiver(bluetoothDiscoverableReceiver,
                 new IntentFilter(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED));
+
+        // register a broadcast receiver for ACTION_BOND_STATE_CHANGED intent used for pairing devices
+        myMainActivity.registerReceiver(blueoothPairingReceiver, new IntentFilter(
+                BluetoothDevice.ACTION_BOND_STATE_CHANGED));
     }
 
     // Unregister all broadcast receivers for the Bluetooth
     public void unregisterBroadcastReceivers() {
-        myMainActivity.unregisterReceiver(bluetoothStateChange);
-        myMainActivity.unregisterReceiver(bluetoothDeviceDiscoverableReceiver);
+        myMainActivity.unregisterReceiver(bluetoothStateReceiver);
+        myMainActivity.unregisterReceiver(bluetoothDiscoverableReceiver);
         myMainActivity.unregisterReceiver(bluetoothDeviceFoundReceiver);
+        myMainActivity.unregisterReceiver(blueoothPairingReceiver);
     }
 
     // Wrapper function for the status text field in the main activity. Comment out in final version.
