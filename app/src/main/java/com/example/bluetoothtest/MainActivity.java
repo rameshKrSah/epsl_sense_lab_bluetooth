@@ -4,76 +4,22 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
-import android.util.Log;
+import android.os.ParcelUuid;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.util.Set;
 
-import static androidx.core.app.ActivityCompat.startActivityForResult;
-
 
 /*
-    - BluetoothAdapter represents the local Bluetooth adapter or radio and is the entry-point for all
-    Bluetooth interaction. Using this we can discover other Bluetooth devices, query a list of bonded
-    devices, instantiate a Bluetooth device using a known MAC address, and create a BluetoothServerSocket
-    to listen for communications from other devices.
-
-    - BluetoothDevice represents a remote Bluetooth device and is used to request a connection with
-    a remote device through BluetoothSocket or query information about the device such as its name,
-    address, class and bonding state.
-
-    - BluetoothSocket represents the interface for a Bluetooth socket and is the connection point
-    for data exchange with another Bluetooth device via InputStream and OutputStream.
-
-    - BluetoothServerSocket represents an open server that listens for incoming requests in order to
-    connect two Bluetooth devices. When a remote Bluetooth device makes a connection request to server
-    , BluetoothServerSocket will return a connected BluetoothSocket when the connection is accepted.
-
-    =========================================== XXX ===============================================
-    In order to use Bluetooth features, we need these permissions:
-
-     1. <uses-permission android:name="android.permission.BLUETOOTH"/>
-
-     2. <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
-
-    <!-- If the app targets Android 9 or lower we can use Coarse Location -->
-     3. <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
- */
-
-/*
-    Notes
-    1. Classic Bluetooth is the for battery-intensive operations. From Android 4.3 (API 18) Bluetooth
-    low energy is also supported.
-
-    2. First form a Bluetooth channel between the pairing devices.
-    3. Another device finds the discoverable device using a service discovery process.
-    4. After the discoverable device accepts the pairing request, the two device complete a bonding
-    process where they exchange security keys. The device caches these keys for later use.
-    5. After pairing and bonding data can be sent and received over the established channel.
-    6. After the session is complete, the device which initiated the pairing process releases the
-    channel but the two device remains bonded so that they can reconnect automatically if they are in
-    range.
-
-    We need three permissions:
-    1. BLUETOOTH :: For Bluetooth functionality
-    2. BLUETOOTH_ADMIN :: To initiate device discovery or manipulate Bluetooth settings.
-    3. ACCESS_FINE_LOCATION
-
-
-    How to set up the Bluetooth ?
-    1. Verify Bluetooth is present in the device. Use BluetoothAdapter
-    2. Check if Bluetooth is enable or not. If not ask user to enable it.
-
-
     TOOD:
     1. Scan for Bluetooth devices
     2. Query Bluetooth adapter for paired Bluetooth devices.
@@ -82,41 +28,6 @@ import static androidx.core.app.ActivityCompat.startActivityForResult;
     5. Transfer data to and from other devices.
     6. Manage multiple connections.
  */
-
-
-/*
-    In order to create a connection between two devices, we must implement both the server side and
-    client side mechanisms, because one device must open a server socket, and the other one must
-    initiate the connection using the server device's MAC address.
-
-    The server receives socket information when an incoming connection is accepted. The client provides
-    socket information when it opens an RFCOMM channel to the server. The server and client are
-    considered connected to each other when they each have a connected BluetoothSocket on the same
-    RFCOMM channel. Now, each device can obtain input and output streams, and transfer data.
- */
-
-/*
-    We can prepare each device as a server so that each device has a server socket open and is
-    listening for connections. Now, either device can initiate a connection with the other and
-    become the client. Or one device can explicitly host the connection and open a server socket on
-    demand, and the other device initiates the connection.
- */
-
-/*
-    When we want to connect two devices, one must act as a server by holding an open
-    BluetoothServerSocket. BluetoothServerSocket listens for incoming connection requests and provide
-    a connected BluetoothSocket once a request is accepted. The accept() call is blocking and hence
-    should not be executed on the UI thread. It usually makes sense to do all work that involves a
-    BluetoothServerSocket and BluetoothSocket in a new thread managed by the application.
-
-    To abort a blocked call such as accept(), call close() on the BluetoothServerSocket or
-    BluetoothSocket from another thread. All methods in BluetoothServerSocket and BluetoothSocket
-    are thread safe.
-
-    To use a matching UUID, hard-code the UUID string into your application, and then reference it
-    from both the server and client code.
- */
-
 
 public class MainActivity extends AppCompatActivity{
     private static final String TAG = "MainActivity";
@@ -137,7 +48,7 @@ public class MainActivity extends AppCompatActivity{
     Button onButton, offButton, discoverButton, scanButton;
     TextView statusText;
 
-    private BroadCastReceiver_Bluetooth myBTCastReceiver;
+    private BCR_BL_State_changed myBTCastReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -155,7 +66,7 @@ public class MainActivity extends AppCompatActivity{
 
         // Get an object of Bluetooth Broadcast Receiver class. This broadcast receiver monitors the
         // state of the Bluetooth module.
-        myBTCastReceiver = new BroadCastReceiver_Bluetooth(getApplicationContext());
+        myBTCastReceiver = new BCR_BL_State_changed(getApplicationContext());
 
         // find the UI elements
         onButton = (Button) findViewById(R.id.onSwitch);
@@ -321,9 +232,14 @@ public class MainActivity extends AppCompatActivity{
                 // Discovery has found a device. Get the Bluetooth device details from the Intent.
                 // To create a connection we just need the MAC address of the discovered device.
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                BluetoothClass dvClass = intent.getParcelableExtra(BluetoothDevice.EXTRA_CLASS);
                 String deviceName = device.getName();
                 String deviceMAC = device.getAddress();
+                ParcelUuid[] uuid = device.getUuids();
                 setStatusText(deviceName + "\t " + deviceMAC);
+                if (uuid != null) {
+                    setStatusText("UUID : " + uuid.toString());
+                }
             }
         }
     };
@@ -389,7 +305,8 @@ public class MainActivity extends AppCompatActivity{
 
         // register the BroadcastReceiver for the ACTION_SCAN_MODE_CHANGED intent of the device
         // discoverable function.
-        registerReceiver(bluetoothDeviceDiscoverableReceiver, new IntentFilter(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED));
+        registerReceiver(bluetoothDeviceDiscoverableReceiver, new IntentFilter(
+                BluetoothAdapter.ACTION_SCAN_MODE_CHANGED));
     }
 
     @Override

@@ -4,11 +4,13 @@ import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.util.Log;
 
-public class BroadCastReceiver_Bluetooth extends BroadcastReceiver {
+public class BCR_BL_State_changed extends BroadcastReceiver {
+    private static final String TAG = "BCR_BL_State_changed";
     private Context myContext;
 
-    public BroadCastReceiver_Bluetooth(Context activityContext) {
+    public BCR_BL_State_changed(Context activityContext) {
         this.myContext = activityContext;
     }
 
@@ -18,22 +20,21 @@ public class BroadCastReceiver_Bluetooth extends BroadcastReceiver {
 
         if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
             final int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR);
-
             switch (state) {
                 case BluetoothAdapter.STATE_OFF:
-                    Utils.toast(this.myContext, "Bluetooth is OFF");
+                    Log.d(TAG, "onReceive: Bluetooth OFF");
                     break;
                 case BluetoothAdapter.STATE_ON:
-                    Utils.toast(this.myContext, "Bluetooth is ON");
+                    Log.d(TAG, "onReceive: Bluetooth ON");
                     break;
                 case BluetoothAdapter.STATE_TURNING_OFF:
-                    Utils.toast(this.myContext, "Bluetooth turning OFF");
+                    Log.d(TAG, "onReceive: Bluetooth turning OFF");
                     break;
                 case BluetoothAdapter.STATE_TURNING_ON:
-                    Utils.toast(this.myContext, "Bluetooth turning ON");
+                    Log.d(TAG, "onReceive: Bluetooth turning ON");
                     break;
                 case BluetoothAdapter.ERROR:
-                    Utils.toast(this.myContext, "Bluetooth ERROR");
+                    Log.d(TAG, "onReceive: Bluetooth ERROR");
                     break;
             }
         }
