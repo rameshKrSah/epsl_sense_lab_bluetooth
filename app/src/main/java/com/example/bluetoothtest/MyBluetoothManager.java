@@ -68,6 +68,11 @@ public class MyBluetoothManager {
         myHandler = new Handler();
     }
 
+    // return the Bluetooth adapter
+    BluetoothAdapter getMyBluetoothAdapter() {
+        return myBluetoothAdapter;
+    }
+
     /*
         Enable Bluetooth. Check whether Bluetooth is available on the device or not. If yes, check
         if it is enabled or not. If not then enable Bluetooth.

@@ -101,3 +101,7 @@ In order to receive information about each device discovered, we need to registe
 BroadcastReceiver for the ACTION_FOUND intent. The system broadcasts this intent for each
 device. The intent contains the extra fields EXTRA_DEVICE and EXTRA_CLASS, which contain a
 BluetoothDevice and a BluetoothClass.
+
+The UUID of a device is available after it is paired. For pairing we just need the MAC address of a
+device.
+

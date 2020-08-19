@@ -46,12 +46,17 @@ public class MainActivity extends AppCompatActivity{
     // Bluetooth Manager for the application
     private MyBluetoothManager myBluetoothManager;
 
-    // test MAC address
-    final String testMAC = "9C:B6:D0:BA:AA:BC";
+    // test MAC address : My Phone
+    final String testMAC = "64:A2:F9:3E:95:9D";
+
+    // Bluetooth service that handle Bluetooth connections and data transmission
+    private BluetoothServerService myBluetoothService;
 
     // UI items
-    Button onButton, offButton, discoverButton, scanButton, pairButton;
+    Button onButton, offButton, discoverButton, scanButton, pairButton, pairedButton, acceptButton;
     TextView statusText;
+
+    Boolean acceptingConnection = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,12 +66,18 @@ public class MainActivity extends AppCompatActivity{
         // get the object of Bluetooth manager class
         myBluetoothManager = new MyBluetoothManager(this);
 
+        // get the object of the Bluetooth service class
+        myBluetoothService = new BluetoothServerService(myBluetoothManager.getMyBluetoothAdapter(),
+                getApplicationContext());
+
         // find the UI elements
         onButton = (Button) findViewById(R.id.onSwitch);
         offButton = (Button) findViewById(R.id.offSwitch);
         discoverButton = (Button) findViewById(R.id.discoverSwitch);
         scanButton = (Button) findViewById(R.id.scanSwitch);
         pairButton = (Button) findViewById(R.id.pairSwitch);
+        pairedButton = (Button) findViewById(R.id.pairedSwitch);
+        acceptButton = (Button) findViewById(R.id.acceptSwitch);
         statusText = (TextView) findViewById(R.id.statusText);
 
         // set the on click listeners for the button
@@ -103,6 +114,29 @@ public class MainActivity extends AppCompatActivity{
             @Override
             public void onClick(View v) {
                 myBluetoothManager.pairBluetoothDevice(testMAC);
+            }
+        });
+
+        pairedButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                myBluetoothManager.listPairedDevices();
+            }
+        });
+
+        acceptButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!acceptingConnection) {
+                    myBluetoothService.startAcceptingConnection();
+                    acceptButton.setText("Decline Connections");
+                    acceptingConnection = true;
+                } else {
+                    myBluetoothService.stopAcceptingConnection();
+                    acceptButton.setText("Accept Connections");
+                    acceptingConnection = false;
+                }
+
             }
         });
     }
