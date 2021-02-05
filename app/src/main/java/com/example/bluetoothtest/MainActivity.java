@@ -12,6 +12,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.ParcelUuid;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -46,17 +47,23 @@ public class MainActivity extends AppCompatActivity{
     // Bluetooth Manager for the application
     private MyBluetoothManager myBluetoothManager;
 
-    // test MAC address : My Phone
-    final String testMAC = "64:A2:F9:3E:95:9D";
+    // One Plus MAC Address
+    final String clientMAC = "64:A2:F9:3E:95:9D";
+
+    // Galaxy S4 MAC Address
+    final String serverMAC = "C4:50:06:83:F4:7E";
 
     // Bluetooth service that handle Bluetooth connections and data transmission
     private BluetoothServerService myBluetoothService;
 
     // UI items
-    Button onButton, offButton, discoverButton, scanButton, pairButton, pairedButton, acceptButton;
+    Button onButton, offButton, discoverButton, scanButton, pairButton, pairedButton,
+            connectButton, acceptButton, sendButton;
     TextView statusText;
 
+    // Boolean for indicating whether we are accepting connections or not
     Boolean acceptingConnection = false;
+    Boolean alreadyConnected = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,7 +84,9 @@ public class MainActivity extends AppCompatActivity{
         scanButton = (Button) findViewById(R.id.scanSwitch);
         pairButton = (Button) findViewById(R.id.pairSwitch);
         pairedButton = (Button) findViewById(R.id.pairedSwitch);
+        connectButton = findViewById(R.id.connectSwitch);
         acceptButton = (Button) findViewById(R.id.acceptSwitch);
+        sendButton = findViewById(R.id.sendSwitch);
         statusText = (TextView) findViewById(R.id.statusText);
 
         // set the on click listeners for the button
@@ -102,10 +111,17 @@ public class MainActivity extends AppCompatActivity{
             }
         });
 
+        pairedButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                myBluetoothManager.listPairedDevices();
+            }
+        });
+
         scanButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // scan for 10 seconds : After 30 seconds the scanning is automatically stopped.
+                // scan for 10 seconds : After 10 seconds the scanning is automatically stopped.
                 myBluetoothManager.startScan(10000, 0);
             }
         });
@@ -113,14 +129,22 @@ public class MainActivity extends AppCompatActivity{
         pairButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                myBluetoothManager.pairBluetoothDevice(testMAC);
+                myBluetoothManager.pairBluetoothDevice(clientMAC);
             }
         });
 
-        pairedButton.setOnClickListener(new View.OnClickListener() {
+        connectButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                myBluetoothManager.listPairedDevices();
+                if(!alreadyConnected){
+                    startClient();
+                    connectButton.setText("Disconnect Now");
+                    alreadyConnected = true;
+                } else {
+                    stopClient();
+                    connectButton.setText("Connect Now");
+                    alreadyConnected = false;
+                }
             }
         });
 
@@ -136,7 +160,13 @@ public class MainActivity extends AppCompatActivity{
                     acceptButton.setText("Accept Connections");
                     acceptingConnection = false;
                 }
+            }
+        });
 
+        sendButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                sendData();
             }
         });
     }
@@ -192,4 +222,35 @@ public class MainActivity extends AppCompatActivity{
         String total = newText + "\n" + oldText;
         statusText.setText(total);
     }
+
+    // Function that initiates the Bluetooth connection to a server
+    private void startClient() {
+        Log.d(TAG, "startConnection: Starting the RFCOMM BT connection");
+
+        // Get the Bluetooth Device for the server MAC
+        BluetoothDevice serverDevice = myBluetoothManager.getPairedBluetoothDevice(serverMAC);
+        if(serverDevice != null) {
+            myBluetoothService.startClient(serverDevice);
+        } else {
+            Log.d(TAG, "startConnection: Server is not paired yet.");
+            setStatusText("Server is not paired yet.");
+        }
+    }
+
+    // Function that stops the Bluetooth connection to a server
+    private void stopClient() {
+        Log.d(TAG, "stopClient: Stopping the Bluetooth client");
+        myBluetoothService.stopClient();
+    }
+
+    // Function to send dummy data over Bluetooth
+    private void sendData() {
+        if(alreadyConnected) {
+            final String text = "Testing Bluetooth Data Transmission";
+            myBluetoothService.write(text.getBytes());
+        }
+    }
+
+
+
 }

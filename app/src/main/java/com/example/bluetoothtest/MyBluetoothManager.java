@@ -231,6 +231,21 @@ public class MyBluetoothManager {
         }
     }
 
+    // Given a MAC address returns the Bluetooth device object if paired
+    public BluetoothDevice getPairedBluetoothDevice(final String MAC) {
+        Set<BluetoothDevice> pairedDevices = this.myBluetoothAdapter.getBondedDevices();
+        if (pairedDevices.size() > 0) {
+            // if there are paired devices, then loop over them and get their attributes:
+            for (BluetoothDevice device : pairedDevices) {
+                if (device.getAddress().equals(MAC)) {
+                    return device;
+                }
+            }
+        }
+
+        return null;
+    }
+
     // Check if a Bluetooth device is already paired or not.
     private boolean isDevicePaired(final String deviceMAC) {
         Set<BluetoothDevice> pairedDevices = this.myBluetoothAdapter.getBondedDevices();
@@ -249,7 +264,7 @@ public class MyBluetoothManager {
         return false;
     }
 
-    // Given a MAC address pair with a Bluetooth device with this MAC address.
+    // Given a MAC address, pair with a Bluetooth device with this MAC address.
     public void pairBluetoothDevice(final String deviceMAC) {
         Log.d(TAG, "pairBluetoothDevice: " + deviceMAC);
 
@@ -309,6 +324,10 @@ public class MyBluetoothManager {
                 String deviceMAC = device.getAddress();
                 ParcelUuid[] uuid = device.getUuids();
                 setStatusText(deviceName + "\t " + deviceMAC + "\t " + device.getBondState());
+
+                /*
+                Bond State : 10 -> Not Bonded, 11 -> Bonding, 12 -> Bonded or Paired
+                 */
 
                 if (uuid != null) {
                     setStatusText("UUID : " + uuid.toString());

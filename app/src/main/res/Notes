@@ -15,6 +15,7 @@ connect two Bluetooth devices. When a remote Bluetooth device makes a connection
 , BluetoothServerSocket will return a connected BluetoothSocket when the connection is accepted.
 
 =========================================== XXX ===============================================
+
 In order to use Bluetooth features, we need these permissions:
 
 1. <uses-permission android:name="android.permission.BLUETOOTH"/>

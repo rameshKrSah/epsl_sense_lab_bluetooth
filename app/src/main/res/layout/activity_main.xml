@@ -51,12 +51,29 @@
         android:text="Pair Now" />
 
     <Button
+        android:id="@+id/connectSwitch"
+        android:minWidth="200dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Connect Now" />
+
+    <Button
         android:id="@+id/acceptSwitch"
         android:minWidth="200dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Accept Connections" />
 
+    <Button
+        android:id="@+id/sendSwitch"
+        android:minWidth="200dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Send Data" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
     <TextView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -66,5 +83,5 @@
         android:textAlignment="center"
         android:textSize="20sp"
         android:gravity="center_horizontal" />
-
+    </ScrollView>
 </androidx.appcompat.widget.LinearLayoutCompat>
