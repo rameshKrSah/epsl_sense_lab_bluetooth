@@ -47,11 +47,14 @@ public class MainActivity extends AppCompatActivity{
     // Bluetooth Manager for the application
     private MyBluetoothManager myBluetoothManager;
 
-    // One Plus MAC Address
-    final String clientMAC = "64:A2:F9:3E:95:9D";
+    // One Plus MAC Address : "64:A2:F9:3E:95:9D"
+    // Galaxy S4 MAC Address : "C4:50:06:83:F4:7E"
+    // Camera MAC Address : "FC:F5:C4:0D:05:D6"
 
-    // Galaxy S4 MAC Address
-    final String serverMAC = "C4:50:06:83:F4:7E";
+    // MAC Address for the server and the client devices. The phone will be server and the camera
+    // will be client.
+    final String serverMAC = "FC:F5:C4:0D:05:D6";
+    final String clientMAC = "FC:F5:C4:0D:05:D6";
 
     // Bluetooth service that handle Bluetooth connections and data transmission
     private BluetoothServerService myBluetoothService;

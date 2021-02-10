@@ -11,8 +11,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.UUID;
-import java.util.concurrent.BlockingDeque;
 
 /*
     This is how the phone and the camera module will communicate.
@@ -44,27 +45,32 @@ import java.util.concurrent.BlockingDeque;
 public class BluetoothServerService {
     // Debugging
     private static final String TAG = "BluetoothServerService";
+    private static final String appNAME = "EPSLSenseLabBluetooth";
     private static final boolean D = true;
     private static final int BufferSize = 1024;
 
     // name for the app
-    private static final String appNAME = "EPSLSenseLabBluetooth";
 
-    // UUID will be configurable from the device settings menu or not ??
-    // Each camera module will have unique UUID and the app needs to know that to establish a connection.
-    private static final UUID MY_UUID = UUID.fromString("a65c117d-4633-4072-9d38-3e15808c140e");
+    // We will use one UUID across all devices, both cameras and phones
+//    private static final UUID MY_UUID = UUID.fromString("a65c117d-4633-4072-9d38-3e15808c140e");
+
+//    byte [] byte_uuid_esp32 = {0x00, 0x00, 0x11, 0x01, 0x00, 0x00, 0x10, 0x00,
+//            0x80, 0x00, 0x00, 0x80, 0x5F, 0x9B, 0x34, 0xFB};
+    // string equivalent of ESP32 UUID: 00001101-0000-1000-8000-00805f9b34fb
+    // this is the generic UUID for Bluetooth Serial communication
+    private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
 
     // Bluetooth vars
-    private final BluetoothAdapter mBTAdapter;
+    private final BluetoothAdapter myBTAdapter;
     
     // these two variables are used when the phone want to connect to a Bluetooth device as a client.
     // Most probably we will not be using these in our application of phone and camera communication
-    // since, phone is the server and the camera client always. 
-    private BluetoothDevice mBTDevice;
-    private UUID mBTDeviceUUID;
+    // since, phone will be the server and the camera client always.
+    private BluetoothDevice myRemoteBTDevice;
+    private UUID myRemoteBTDeviceUUID;
 
-    // Context
-    private Context myContext;
+//    // Context
+//    private Context myContext;
 
     // Service and Thread
     private AcceptThread myAcceptThread;
@@ -78,13 +84,13 @@ public class BluetoothServerService {
     public static final int STATE_CONNECTING = 3; // connecting as a bluetooth client
 
     // State variable
-    private int mState = STATE_NONE;
+    private int myState = STATE_NONE;
 
     // Constructor
     public BluetoothServerService(BluetoothAdapter mBTAdapter, Context context) {
-        this.mBTAdapter = mBTAdapter;
-        this.myContext = context;
-
+        this.myBTAdapter = mBTAdapter;
+//        this.myContext = context;
+        myState = STATE_NONE;
         // we may need to pass an handler to inform the UI thread about the Bluetooth events
     }
 
@@ -92,14 +98,14 @@ public class BluetoothServerService {
     Return the current connection state
      */
     public synchronized int getState() {
-        return mState;
+        return myState;
     }
 
     /*
     Set the current connection state
      */
     public synchronized void setState(int mS) {
-        mState = mS;
+        myState = mS;
     }
 
     /*
@@ -122,8 +128,6 @@ public class BluetoothServerService {
     (camera) to initiate the connection.
      */
     public synchronized void startAcceptingConnection() {
-        if(D)
-            Log.d(TAG, "accepting bluetooth connections");
 
         // cancel any thread that is trying to connect to other servers, just in case
         stopClient();
@@ -132,8 +136,10 @@ public class BluetoothServerService {
         closeConnectedSocket();
 
         // start the thread to listen for incoming connections
-        if(mBTAdapter != null) {
+        if(myBTAdapter != null) {
             if (myAcceptThread == null) {
+                if(D)
+                    Log.d(TAG, "starting accept thread");
                 myAcceptThread = new AcceptThread();
                 myAcceptThread.start();
                 setState(STATE_ACCEPTING);
@@ -149,15 +155,15 @@ public class BluetoothServerService {
      */
     public synchronized void stopAcceptingConnection() {
         if(myAcceptThread != null){
+            if(D)
+                Log.d(TAG, "stopAcceptingConnection: stopping accept thread");
             myAcceptThread.close();
             myAcceptThread = null;
             setState(STATE_NONE);
         }
 
         // close any connected thread running a connection
-        closeConnectedSocket();
-
-
+//        closeConnectedSocket();
     }
 
 
@@ -166,12 +172,12 @@ public class BluetoothServerService {
     device will be the client and the accept thread running device will be the server.
     */
     public synchronized void startClient(final BluetoothDevice serverDevice) {
-        if(D)
-            Log.d(TAG, "startClient: starting connect thread");
 
         // cancel any thread attempting to make a connection
-        if(mState == STATE_CONNECTING) {
+        if(myState == STATE_CONNECTING) {
             if(myConnectThread != null) {
+                if(D)
+                    Log.d(TAG, "startClient: starting connect thread");
                 myConnectThread.close();
                 myConnectThread = null;
             }
@@ -190,16 +196,16 @@ public class BluetoothServerService {
     Stops the bluetooth client operations.
      */
     public synchronized void stopClient() {
-        if(D)
-            Log.d(TAG, "stopClient: stopping outgoing connection");
 
         if(myConnectThread != null){
+            if(D)
+                Log.d(TAG, "stopClient: stopping connect thread");
             myConnectThread.close();
             myConnectThread = null;
         }
 
         // close any connected thread running a connection
-        closeConnectedSocket();
+//        closeConnectedSocket();
     }
 
     /*
@@ -208,7 +214,7 @@ public class BluetoothServerService {
      */
     private synchronized void manageConnectedSocket(BluetoothSocket mmSocket) {
         if(D)
-            Log.d(TAG, "manageConnectedSocket: Connection established");
+            Log.d(TAG, "manageConnectedSocket: starting manage connected connection thread");
 
         // cancel any thread that is trying to establish a connection
         stopClient();
@@ -236,14 +242,15 @@ public class BluetoothServerService {
     Close any thread that is currently running bluetooth connections.
      */
     public synchronized void closeConnectedSocket() {
-        if(D)
-            Log.d(TAG, "closeConnectedSocket");
 
         if(myConnectedThread != null) {
+            if(D)
+                Log.d(TAG, "closeConnectedSocket: stopping manage connected connection thread");
             myConnectedThread.close();
             myConnectedThread = null;
         }
-        setState(STATE_NONE);
+
+//        setState(STATE_NONE);
     }
 
 
@@ -276,13 +283,38 @@ public class BluetoothServerService {
 
         // Synchronized a copy of the Connected Thread
         synchronized (this) {
-            if (mState != STATE_CONNECTED)
+            if (myState != STATE_CONNECTED)
                 return;
             r = myConnectedThread;
         }
 
         // write data over the connected connection
         r.write(outBuffer);
+    }
+
+    /*
+        This function is called to re-establish the bluetooth connection with the camera module
+        if the connection was failed to be established. We try to connect to the camera after 5
+        seconds.
+     */
+    private void connectionFailed() {
+        // after sometime (5 seconds) again try to connect to the same remote device
+        new Timer().schedule(new TimerTask() {
+            @Override
+            public void run() {
+                if (myRemoteBTDevice != null){
+                    BluetoothServerService.this.startClient(myRemoteBTDevice);
+                }
+            }
+        }, 5000);
+    }
+
+    /*
+        Connection lost to the remote device. Start the bluetooth server again and wait for the
+        incoming connection.
+     */
+    private void connectionLost() {
+        BluetoothServerService.this.startAcceptingConnection();
     }
 
     /*
@@ -305,7 +337,7 @@ public class BluetoothServerService {
             BluetoothServerSocket tmp = null;
 
             try {
-                tmp = mBTAdapter.listenUsingInsecureRfcommWithServiceRecord(appNAME, MY_UUID);
+                tmp = myBTAdapter.listenUsingInsecureRfcommWithServiceRecord(appNAME, MY_UUID);
             } catch (IOException e) {
                 Log.e(TAG, "AcceptThread: Socket's listen method failed", e);
             }
@@ -320,7 +352,7 @@ public class BluetoothServerService {
             BluetoothSocket socket = null;
 
             // keep listening until exception occurs or a socket is returned.
-            while (true) {
+            while (myState != STATE_CONNECTED) {
                 try {
                     // this is a blocking call and hence must be ran on a separate thread.
                     // Also call close() on BluetoothServerSocket or BluetoothSocket to exit our of it.
@@ -337,11 +369,30 @@ public class BluetoothServerService {
                 }
 
                 if (socket != null) {
-                    // A connection was accepted. Perform work associated with the connection in a
-                    // separate thread.
-                    manageConnectedSocket(socket);
-                    close();
-                    break;
+                    synchronized (BluetoothServerService.this) {
+                        switch (myState){
+                            case STATE_NONE:
+                            case STATE_ACCEPTING:
+                            case STATE_CONNECTING:
+                                // Normal case, start the connected thread to manage the connection
+                                manageConnectedSocket(socket);
+                                break;
+                            case STATE_CONNECTED:
+                                // Either the socket is not ready or already connected.
+                                try {
+                                    socket.close();
+                                } catch (IOException e) {
+                                    Log.e(TAG, "could not close unwanted socket in accept thread", e);
+                                }
+                                break;
+
+
+                        }
+                    }
+//                    // A connection was accepted. Perform work associated with the connection in a
+////                    // separate thread.
+////                    close();
+////                    break;
                 }
             }
             if(D)
@@ -356,7 +407,6 @@ public class BluetoothServerService {
                 mmServerSocket.close();
             } catch (IOException e) {
                 Log.e(TAG, "run: Socket close method failed", e);
-
             }
         }
     }
@@ -373,8 +423,8 @@ public class BluetoothServerService {
             // we will need the Bluetooth device and UUID of the server we want to connect to
             if(D)
                 Log.d(TAG, "run: Connect Thread");
-            mBTDevice = device;
-            mBTDeviceUUID = uuid;
+            myRemoteBTDevice = device;
+            myRemoteBTDeviceUUID = uuid;
         }
 
         public void run() {
@@ -382,9 +432,10 @@ public class BluetoothServerService {
 
             // try to get a Bluetooth socket for the given Bluetooth device
             if(D)
-                Log.d(TAG, "run: Connecting with device " + mBTDevice.getAddress());
+                Log.d(TAG, "run: Connecting with device " + myRemoteBTDevice.getAddress());
+
             try {
-                tmp = mBTDevice.createRfcommSocketToServiceRecord(mBTDeviceUUID);
+                tmp = myRemoteBTDevice.createRfcommSocketToServiceRecord(myRemoteBTDeviceUUID);
             } catch (IOException e) {
                 Log.e(TAG, "run: Failed to create a RFCOMM socket", e);
             }
@@ -392,7 +443,7 @@ public class BluetoothServerService {
             mmSocket = tmp;
             
             // cancel device discovery because it will slow down a connection
-            mBTAdapter.cancelDiscovery();
+            myBTAdapter.cancelDiscovery();
             
             // Make a connection to the Bluetooth Socket
             try {
@@ -406,6 +457,10 @@ public class BluetoothServerService {
                 close();
 
                 // TODO connection failed. Do you want to retry ??
+//                connectionFailed();
+
+                // for now just return from here without going to the manage connection thread
+                return;
             }
 
             // reset the connect thread because we are done with this thread
@@ -441,13 +496,16 @@ public class BluetoothServerService {
 
         public ConnectedThread(BluetoothSocket socket) {
             if(D)
-                Log.d(TAG, "ConnectedThread: Starting the connected thread");
-            this.mmSocket = socket;
+                Log.d(TAG, "ConnectedThread: started");
+
+            // save the socket
+            mmSocket = socket;
 
             // get the input and output stream
             InputStream tmpIn = null;
             OutputStream tmpOut = null;
 
+            // get the input and output stream
             try {
                 tmpIn = mmSocket.getInputStream();
                 tmpOut = mmSocket.getOutputStream();
@@ -458,31 +516,38 @@ public class BluetoothServerService {
             this.mmInputStream = tmpIn;
             this.mmOutputStream = tmpOut;
             if(D)
-                Log.d(TAG, "ConnectedThread: Input output stream set.");
+                Log.d(TAG, "ConnectedThread: Input output stream set");
         }
 
         public void run() {
             // buffer to store the input data
             byte[] buffer = new byte[BufferSize];
-            int nBytes;
+            int nBytes, availableBytes;
 
             // keep listening to the Input Stream while connected or until an exception occurs
             while(true) {
                 try {
                     if(D)
-                        Log.d(TAG, "run: Waiting for the input data");
+                        Log.d(TAG, "connected thread: waiting for data over receive stream");
 
-                    // read data from input stream
-                    nBytes = mmInputStream.read(buffer);
+//                    availableBytes = mmInputStream.available();
+//                    Log.d(TAG, "run: available data " + availableBytes);
+
+                    // read data from input stream, until the buffer is full or no more bytes are left to read
+                    nBytes = mmInputStream.read(buffer,  0, buffer.length);
+//                    int bytesRead = inputStream.Read(buffer, 0, buffer.Length);
 
                     // log the read data: We assume the read bytes is text
-                    String inMessage = new String(buffer, 0, nBytes);
-                    Log.d(TAG, "run: Read Data: " + inMessage);
+                    if(nBytes != -1) {
+                        String inMessage = new String(buffer, 0, nBytes);
+                        Log.d(TAG, "run: Read Data: " + inMessage);
+                    }
 
                 } catch (IOException e) {
                     Log.e(TAG, "run: Error reading data from BT device", e);
 
-                    //TODO Exception occurred. Do you want to start the service again or not??
+                    //TODO Connection lost. Do you want to start the service again or not??
+                    connectionLost();
                     break;
                 }
             }
@@ -493,24 +558,25 @@ public class BluetoothServerService {
             // print out the buffer content
             if(D) {
                 String txt = new String(buffer, Charset.defaultCharset());
-                Log.d(TAG, "write: Sending " + txt);
+                Log.d(TAG, "connected thread: writing data " + txt);
             }
 
             // write the data to the output stream
             try {
                 mmOutputStream.write(buffer);
             } catch (IOException e) {
-                Log.e(TAG, "write: Failed sending data to BT device", e);
+                Log.e(TAG, "connected thread: failed sending data", e);
             }
         }
 
         // Function to close the blocking read and write calls
         public void close() {
             try {
-                Log.d(TAG, "cancel: Closing the connected socket");
+                if(D)
+                    Log.d(TAG, "connected thread: Closing the connected socket");
                 mmSocket.close();
             } catch (IOException e) {
-                Log.e(TAG, "run: Failed to close the socket", e);
+                Log.e(TAG, "connected thread: Failed to close the socket", e);
             }
         }
     }

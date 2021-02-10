@@ -13,6 +13,7 @@ import android.os.Handler;
 import android.os.ParcelUuid;
 import android.util.Log;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Set;
 
@@ -328,10 +329,7 @@ public class MyBluetoothManager {
                 /*
                 Bond State : 10 -> Not Bonded, 11 -> Bonding, 12 -> Bonded or Paired
                  */
-
-                if (uuid != null) {
-                    setStatusText("UUID : " + uuid.toString());
-                }
+//                setStatusText("UUID : " + uuid.toString());
 
                 // here we can post a runnable to save the details of each found device.
                 myHandler.post(new Runnable() {
