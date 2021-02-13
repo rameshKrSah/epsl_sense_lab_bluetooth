@@ -77,7 +77,7 @@ public class BluetoothService {
     private int myState;
 
     // Constructor
-    public BluetoothService(BluetoothAdapter mBTAdapter, Context context) {
+    public BluetoothService(BluetoothAdapter mBTAdapter) {
         this.myBTAdapter = mBTAdapter;
         this.myState = BluetoothState.STATE_NONE;
         // we may need to pass an handler to inform the UI thread about the Bluetooth events

@@ -69,8 +69,7 @@ public class MainActivity extends AppCompatActivity{
         bluetoothController = new BluetoothController(this);
 
         // get the object of the Bluetooth service class
-        myBluetoothService = new BluetoothService(bluetoothController.getMyBluetoothAdapter(),
-                getApplicationContext());
+        myBluetoothService = new BluetoothService(bluetoothController.getMyBluetoothAdapter());
 
         // find the UI elements
         onButton = (Button) findViewById(R.id.onSwitch);
@@ -192,7 +191,6 @@ public class MainActivity extends AppCompatActivity{
                 }
                 break;
         }
-
         super.onActivityResult(requestCode, resultCode, data);
     }
 
@@ -235,7 +233,7 @@ public class MainActivity extends AppCompatActivity{
     // Function that stops the Bluetooth connection to a server
     private void stopClient() {
         Log.d(TAG, "stopClient: Stopping the Bluetooth client");
-        myBluetoothService.stopConnectingThread();
+        myBluetoothService.stopClient();
     }
 
     // Function to send dummy data over Bluetooth

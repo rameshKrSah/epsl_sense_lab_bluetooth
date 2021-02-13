@@ -18,7 +18,10 @@ import java.util.ArrayList;
 import java.util.Set;
 
 public class BluetoothController {
-    private static final String TAG = "MyBluetoothManager";
+    private static final String TAG = "BluetoothController";
+
+    // Bluetooth service object
+    private BluetoothService myBluetoothService;
 
     // Bluetooth adapter variable
     private BluetoothAdapter myBluetoothAdapter;
@@ -55,15 +58,16 @@ public class BluetoothController {
         this.myMainActivity = mainActivity;
         this.myMAContext = myMainActivity.getApplicationContext();
 
-        // get the Bluetooth manager and Bluetooth adapter
-        myBluetoothManager = (BluetoothManager) this.myMainActivity.getSystemService(
-                Context.BLUETOOTH_SERVICE);
-        myBluetoothAdapter = myBluetoothManager.getAdapter();
+        // get the default Bluetooth adapter
+        myBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
         if (myBluetoothAdapter == null) {
-            Utils.toast(myMainActivity.getApplicationContext(), "Bluetooth Not Available.");
+            Utils.toast(myMAContext, "Bluetooth not available.");
             return;
         }
+
+        // get the Bluetooth service instance
+        myBluetoothService = new BluetoothService(myBluetoothAdapter);
 
         // get a new Handler
         myHandler = new Handler();
