@@ -3,21 +3,13 @@ package com.example.bluetoothtest;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothDevice;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Bundle;
-import android.os.ParcelUuid;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
-
-import java.util.Set;
 
 /*
     TOOD:
@@ -45,7 +37,7 @@ public class MainActivity extends AppCompatActivity{
     public static final int DISCOVERABLE_DURATION = 300;
 
     // Bluetooth Manager for the application
-    private MyBluetoothManager myBluetoothManager;
+    private BluetoothController bluetoothController;
 
     // One Plus MAC Address : "64:A2:F9:3E:95:9D"
     // Galaxy S4 MAC Address : "C4:50:06:83:F4:7E"
@@ -57,7 +49,7 @@ public class MainActivity extends AppCompatActivity{
     final String clientMAC = "FC:F5:C4:0D:05:D6";
 
     // Bluetooth service that handle Bluetooth connections and data transmission
-    private BluetoothServerService myBluetoothService;
+    private BluetoothService myBluetoothService;
 
     // UI items
     Button onButton, offButton, discoverButton, scanButton, pairButton, pairedButton,
@@ -74,10 +66,10 @@ public class MainActivity extends AppCompatActivity{
         setContentView(R.layout.activity_main);
 
         // get the object of Bluetooth manager class
-        myBluetoothManager = new MyBluetoothManager(this);
+        bluetoothController = new BluetoothController(this);
 
         // get the object of the Bluetooth service class
-        myBluetoothService = new BluetoothServerService(myBluetoothManager.getMyBluetoothAdapter(),
+        myBluetoothService = new BluetoothService(bluetoothController.getMyBluetoothAdapter(),
                 getApplicationContext());
 
         // find the UI elements
@@ -96,28 +88,28 @@ public class MainActivity extends AppCompatActivity{
         onButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                myBluetoothManager.enableBluetooth();
+                bluetoothController.enableBluetooth();
             }
         });
 
         offButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                myBluetoothManager.disableBluetooth();
+                bluetoothController.disableBluetooth();
             }
         });
 
         discoverButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                myBluetoothManager.makeDiscoverable();
+                bluetoothController.makeDiscoverable();
             }
         });
 
         pairedButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                myBluetoothManager.listPairedDevices();
+                bluetoothController.listPairedDevices();
             }
         });
 
@@ -125,14 +117,14 @@ public class MainActivity extends AppCompatActivity{
             @Override
             public void onClick(View v) {
                 // scan for 10 seconds : After 10 seconds the scanning is automatically stopped.
-                myBluetoothManager.startScan(10000, 0);
+                bluetoothController.startScan(10000, 0);
             }
         });
 
         pairButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                myBluetoothManager.pairBluetoothDevice(clientMAC);
+                bluetoothController.pairBluetoothDevice(clientMAC);
             }
         });
 
@@ -155,11 +147,11 @@ public class MainActivity extends AppCompatActivity{
             @Override
             public void onClick(View v) {
                 if (!acceptingConnection) {
-                    myBluetoothService.startAcceptingConnection();
+                    myBluetoothService.startServer();
                     acceptButton.setText("Decline Connections");
                     acceptingConnection = true;
                 } else {
-                    myBluetoothService.stopAcceptingConnection();
+                    myBluetoothService.stopServer();
                     acceptButton.setText("Accept Connections");
                     acceptingConnection = false;
                 }
@@ -208,14 +200,14 @@ public class MainActivity extends AppCompatActivity{
     protected void onStart() {
         super.onStart();
         // register broadcast receivers
-        myBluetoothManager.registerBroadcastReceivers();
+        bluetoothController.registerBroadcastReceivers();
 
     }
 
     @Override
     protected void onDestroy() {
         // unregister the broadcast receivers
-        myBluetoothManager.unregisterBroadcastReceivers();
+        bluetoothController.unregisterBroadcastReceivers();
         super.onDestroy();
     }
 
@@ -231,7 +223,7 @@ public class MainActivity extends AppCompatActivity{
         Log.d(TAG, "startConnection: Starting the RFCOMM BT connection");
 
         // Get the Bluetooth Device for the server MAC
-        BluetoothDevice serverDevice = myBluetoothManager.getPairedBluetoothDevice(serverMAC);
+        BluetoothDevice serverDevice = bluetoothController.getPairedBluetoothDevice(serverMAC);
         if(serverDevice != null) {
             myBluetoothService.startClient(serverDevice);
         } else {
@@ -243,14 +235,15 @@ public class MainActivity extends AppCompatActivity{
     // Function that stops the Bluetooth connection to a server
     private void stopClient() {
         Log.d(TAG, "stopClient: Stopping the Bluetooth client");
-        myBluetoothService.stopClient();
+        myBluetoothService.stopConnectingThread();
     }
 
     // Function to send dummy data over Bluetooth
     private void sendData() {
-        if(alreadyConnected) {
+        if(true) {
             final String text = "Testing Bluetooth Data Transmission";
-            myBluetoothService.write(text.getBytes());
+            Log.d(TAG, "sendData: over Bluetooth" + text);
+            myBluetoothService.writeBytes(text.getBytes());
         }
     }
 

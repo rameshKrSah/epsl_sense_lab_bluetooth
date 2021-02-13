@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Set;
 
-public class MyBluetoothManager {
+public class BluetoothController {
     private static final String TAG = "MyBluetoothManager";
 
     // Bluetooth adapter variable
@@ -51,7 +51,7 @@ public class MyBluetoothManager {
     private ArrayList<BluetoothDevice> mBTDevices = new ArrayList<>();
 
     // Constructor for the class
-    public MyBluetoothManager(MainActivity mainActivity) {
+    public BluetoothController(MainActivity mainActivity) {
         this.myMainActivity = mainActivity;
         this.myMAContext = myMainActivity.getApplicationContext();
 
