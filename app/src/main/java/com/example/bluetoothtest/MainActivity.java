@@ -24,12 +24,10 @@ import android.widget.TextView;
 public class MainActivity extends AppCompatActivity{
     private static final String TAG = "MainActivity";
 
-//    // Bluetooth adapter variable
-//    private BluetoothAdapter myBluetoothAdapter;
-
     // Locally defined integer constant that must be greater than 0.
     public static final int REQUEST_ENABLE_BT = 100;
     public static final int REQUEST_DISCOVER_BT = 101;
+    public static final int BT_CONN_STATUS = 102;
 
     // By default, we can make the device discoverable for 2 minutes. Here we have used 5 minutes.
     // The longest possible discoverable time is 1 hour. If the DISCOVERABLE_DURATION is set 0 then
@@ -38,6 +36,9 @@ public class MainActivity extends AppCompatActivity{
 
     // Bluetooth Manager for the application
     private BluetoothController myBluetoothController;
+
+    // The implementations of the Bluetooth broadcast listeners.
+    private BluetoothListenersImplementation myBluetoothBCListeners;
 
     // One Plus MAC Address : "64:A2:F9:3E:95:9D"
     // Galaxy S4 MAC Address : "C4:50:06:83:F4:7E"
@@ -49,7 +50,7 @@ public class MainActivity extends AppCompatActivity{
     final String clientMAC = "FC:F5:C4:0D:05:D6";
 
     // Bluetooth service that handle Bluetooth connections and data transmission
-    private BluetoothService myBluetoothService;
+//    private BluetoothService myBluetoothService;
 
     // UI items
     Button onButton, offButton, discoverButton, scanButton, pairButton, pairedButton,
@@ -70,13 +71,14 @@ public class MainActivity extends AppCompatActivity{
         // get the object of Bluetooth manager class
         myBluetoothController = new BluetoothController(this);
 
-        // establish if we have Bluetooth access or not.
-        if(myBluetoothController.isBTEnabled()){
-            doWeHaveBluetooth = true;
-        }
+        // create the functions for the
+        myBluetoothBCListeners = new BluetoothListenersImplementation(myBluetoothController);
+
+        // set the broadcast listeners
+        myBluetoothController.setBluetoothBroadcastListeners(myBluetoothBCListeners);
 
         // get the object of the Bluetooth service class
-        myBluetoothService = new BluetoothService(myBluetoothController.getMyBluetoothAdapter());
+//        myBluetoothService = new BluetoothService(myBluetoothController.getMyBluetoothAdapter());
 
         // find the UI elements
         onButton = (Button) findViewById(R.id.onSwitch);
@@ -123,7 +125,7 @@ public class MainActivity extends AppCompatActivity{
             @Override
             public void onClick(View v) {
                 // scan for 10 seconds : After 10 seconds the scanning is automatically stopped.
-                myBluetoothController.startScan(10000, 0);
+                myBluetoothController.startScan(10000);
             }
         });
 
@@ -154,11 +156,11 @@ public class MainActivity extends AppCompatActivity{
             public void onClick(View v) {
                 if(myBluetoothController.isBTAvailable() && myBluetoothController.isBTEnabled()) {
                     if (!acceptingConnection) {
-                        myBluetoothService.startServer();
+                        myBluetoothController.startAsServer();
                         acceptButton.setText("Decline Connections");
                         acceptingConnection = true;
                     } else {
-                        myBluetoothService.stopServer();
+                        myBluetoothController.stopServer();
                         acceptButton.setText("Accept Connections");
                         acceptingConnection = false;
                     }
@@ -207,14 +209,15 @@ public class MainActivity extends AppCompatActivity{
     protected void onStart() {
         super.onStart();
         // register broadcast receivers
-        myBluetoothController.registerBroadcastReceivers();
+//        myBluetoothController.registerBroadcastReceivers();
 
     }
 
     @Override
     protected void onDestroy() {
         // unregister the broadcast receivers
-        myBluetoothController.unregisterBroadcastReceivers();
+//        myBluetoothController.unregisterBroadcastReceivers();
+        myBluetoothController.unRegisterBluetoothBroadcastListeners();
         super.onDestroy();
     }
 
@@ -228,11 +231,10 @@ public class MainActivity extends AppCompatActivity{
     // Function that initiates the Bluetooth connection to a server
     private void startClient() {
         Log.d(TAG, "startConnection: Starting the RFCOMM BT connection");
-
         // Get the Bluetooth Device for the server MAC
-        BluetoothDevice serverDevice = myBluetoothController.findBTDeviceByMac(serverMAC);
-        if(serverDevice != null) {
-            myBluetoothService.startClient(serverDevice);
+//        BluetoothDevice serverDevice = myBluetoothController.findBTDeviceByMac(serverMAC);
+        if(serverMAC != null) {
+            myBluetoothController.startAsClient(serverMAC);
         } else {
             Log.d(TAG, "startConnection: Server is not paired yet.");
             setStatusText("Server is not paired yet.");
@@ -243,7 +245,7 @@ public class MainActivity extends AppCompatActivity{
     private void stopClient() {
         Log.d(TAG, "stopClient: Stopping the Bluetooth client");
         if(myBluetoothController.isBTAvailable() && myBluetoothController.isBTEnabled()) {
-            myBluetoothService.stopClient();
+            myBluetoothController.stopClient();
         }
     }
 
@@ -252,10 +254,8 @@ public class MainActivity extends AppCompatActivity{
         if(true) {
             final String text = "Testing Bluetooth Data Transmission";
             Log.d(TAG, "sendData: over Bluetooth" + text);
-            myBluetoothService.writeBytes(text.getBytes());
+            myBluetoothController.sendData(text.getBytes());
         }
     }
-
-
 
 }
