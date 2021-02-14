@@ -8,12 +8,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.Build;
 import android.os.Handler;
 import android.os.ParcelUuid;
 import android.util.Log;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Set;
 
@@ -26,12 +24,16 @@ public class BluetoothController {
     // Bluetooth adapter variable
     private BluetoothAdapter myBluetoothAdapter;
 
+    // Broadcast listeners
+    protected BluetoothBaseListener myBaselisteners;
+    protected BluetoothBroadcastReceiver myReceivers;
+
     // Bluetooth manager
     private BluetoothManager myBluetoothManager;
 
     // We need reference to MainActivity for context of the application.
     private MainActivity myMainActivity;
-    private Context myMAContext;
+    private Context myContext;
 
     // Locally defined integer constant that must be greater than 0.
     private static final int REQUEST_ENABLE_BT = 100;
@@ -56,13 +58,13 @@ public class BluetoothController {
     // Constructor for the class
     public BluetoothController(MainActivity mainActivity) {
         this.myMainActivity = mainActivity;
-        this.myMAContext = myMainActivity.getApplicationContext();
+        this.myContext = myMainActivity.getApplicationContext();
 
         // get the default Bluetooth adapter
         myBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
         if (myBluetoothAdapter == null) {
-            Utils.toast(myMAContext, "Bluetooth not available.");
+            Utils.toast(myContext, "Bluetooth not available.");
             return;
         }
 
@@ -73,65 +75,127 @@ public class BluetoothController {
         myHandler = new Handler();
     }
 
-    // return the Bluetooth adapter
+    /*
+        Register broadcast listeners for the current context.
+     */
+    protected void registerBroadCastReceivers(){
+        if (myBaselisteners == null || myContext == null){
+            return;
+        }
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
+        filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED);
+        filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+        filter.addAction(BluetoothDevice.ACTION_FOUND);
+        filter.addAction(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED);
+        filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
+
+        myReceivers = new BluetoothBroadcastReceiver(myBaselisteners);
+        myContext.registerReceiver(myReceivers, filter);
+    }
+
+
+    /*
+        Set the Bluetooth broadcast listeners.
+        @param listener, a BluetoothBaseListener
+     */
+    public void setBluetoothBroadcastListeners(BluetoothBaseListener listener) {
+        this.myBaselisteners = listener;
+        registerBroadCastReceivers();
+        if (myBluetoothService != null) {
+//            myBluetoothService.setBluetoothListeners(myBaselisteners);
+        }
+    }
+
+    /*
+        Return the current device Bluetooth adapter
+     */
     BluetoothAdapter getMyBluetoothAdapter() {
         return myBluetoothAdapter;
+    }
+
+    /*
+        Is current device's Bluetooth available
+     */
+    public boolean isBTAvailable() {
+        return myBluetoothAdapter != null;
+    }
+
+    /*
+        Is current device's Bluetooth enabled.
+     */
+    public boolean isBTEnabled() {
+        if (isBTAvailable()) {
+            return myBluetoothAdapter.isEnabled();
+        }
+        return false;
+    }
+
+    /*
+        Enable Bluetooth using the intent. This ask the user to enable the Bluetooth by showing
+        a pop box.
+     */
+    private void enableWithIntent() {
+        if (Utils.checkBluetooth(myBluetoothAdapter)) {
+            Utils.toast(myContext, "Bluetooth already on.");
+        }
+        else
+        {
+                /*
+                     REQUEST_ENABLE_BT is returned back by the system in onActivityResult as the request
+                     code parameter.
+
+                     If enabling Bluetooth succeeds, the activity will receives the RESULT_OK result
+                     code in the onActivityResult() callback. If the Bluetooth was not enabled due to
+                     an error (or the user responded "No") then the result code is RESULT_CANCELED.
+
+                     Also, enabling discoverability automatically enables the Bluetooth.
+                 */
+
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            myMainActivity.startActivityForResult(enableBtIntent, this.REQUEST_ENABLE_BT);
+        }
     }
 
     /*
         Enable Bluetooth. Check whether Bluetooth is available on the device or not. If yes, check
         if it is enabled or not. If not then enable Bluetooth.
      */
-    public void enableBluetooth() {
-        if (Utils.checkBluetooth(myBluetoothAdapter)){
-            Utils.toast(myMAContext, "Bluetooth already on.");
+    public boolean enableBluetooth() {
+        // lets not use the intent to enable the Bluetooth. Since we know when we are enabling the
+        // Bluetooth and also for what purposes. We will just enable it without asking the user.
+        if (!isBTAvailable()) {
+            return false;
         }
-        else
-        {
-            /*
-             REQUEST_ENABLE_BT is returned back by the system in onActivityResult as the request
-             code parameter.
-
-             If enabling Bluetooth succeeds, the activity will receives the RESULT_OK result
-             code in the onActivityResult() callback. If the Bluetooth was not enabled due to
-             an error (or the user responded "No") then the result code is RESULT_CANCELED.
-
-             Also, enabling discoverability automatically enables the Bluetooth.*/
-
-            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            myMainActivity.startActivityForResult(enableBtIntent, this.REQUEST_ENABLE_BT);
-
-        }
+        return myBluetoothAdapter.enable();
     }
 
     /*
         Disable the Bluetooth if it is turned on. Else do nothing.
      */
-    public void disableBluetooth() {
-        if(Utils.checkBluetooth(myBluetoothAdapter)){
-            myBluetoothAdapter.disable();
+    public boolean disableBluetooth() {
+        if(isBTAvailable() && isBTEnabled()){
             setStatusText("Bluetooth turned off");
+            return myBluetoothAdapter.disable();
         }
-        else
-        {
-            Utils.toast(myMAContext,"Bluetooth is already off");
-        }
+        Utils.toast(myContext,"Bluetooth is already off");
+        return false;
     }
 
     /*
-    Make the phone Bluetooth discoverable for other devices. For connecting to remote device we
-     don't need to make the device discoverable. Enabling discoverability is only necessary when
-     we want the app to host a server socket that accepts incoming connections. Also, once the remote
-     device is paired once, we don't need to make the device discoverable.
+        Make the phone Bluetooth discoverable for other devices. For connecting to remote device we
+         don't need to make the device discoverable. Enabling discoverability is only necessary when
+         we want the app to host a server socket that accepts incoming connections. Also, once the remote
+         device is paired once, make sure to cancel device discovery.
     */
     public void makeDiscoverable() {
-        if (Utils.checkBluetooth(this.myBluetoothAdapter)) {
+        if (isBTAvailable() && isBTEnabled()) {
             Intent discoverableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
-            discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION,
-                    DISCOVERABLE_DURATION);
-            myMainActivity.startActivityForResult(discoverableIntent, this.REQUEST_DISCOVER_BT);
+            discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, DISCOVERABLE_DURATION);
+            myMainActivity.startActivity(discoverableIntent);
         } else {
-            Utils.toast(myMAContext, "Turn on the Bluetooth first.");
+            Utils.toast(myContext, "Turn on the Bluetooth first.");
         }
     }
 
@@ -148,10 +212,10 @@ public class BluetoothController {
         this.scanPeriod = scanPeriod;
         this.signalStrength = signalStrength;
 
-        if(Utils.checkBluetooth(myBluetoothAdapter)){
-            scanForBluetoothDevices(true);
+        if(isBTEnabled() && isBTEnabled()){
+            scanForBluetoothDevices();
         } else {
-            Utils.toast(myMAContext, "Turn on the Bluetooth first.");
+            Utils.toast(myContext, "Turn on the Bluetooth first.");
         }
     }
 
@@ -160,9 +224,10 @@ public class BluetoothController {
      */
     public void stopScan() {
         if (Utils.checkBluetooth(myBluetoothAdapter)) {
-            scanForBluetoothDevices(false);
+            mScanning = false;
+            myBluetoothAdapter.cancelDiscovery();
         } else {
-            Utils.toast(myMAContext, "Turn on the Bluetooth first.");
+            Utils.toast(myContext, "Turn on the Bluetooth first.");
         }
     }
 
@@ -184,8 +249,8 @@ public class BluetoothController {
     The Android Bluetooth API requires the devices to be paired before an RFCOMM connection can be
     established.
     */
-    private void scanForBluetoothDevices(final boolean enable) {
-        if (enable && !this.mScanning) {
+    private void scanForBluetoothDevices() {
+        if (!this.mScanning) {
             mBTDevices = new ArrayList<>();
             setStatusText("Starting scan for devices ..");
 
@@ -203,9 +268,6 @@ public class BluetoothController {
             // start discovery or scan for Bluetooth devices
             mScanning = true;
             myBluetoothAdapter.startDiscovery();
-        } else if (!enable) {
-            mScanning = false;
-            myBluetoothAdapter.cancelDiscovery();
         }
     }
 
@@ -237,18 +299,25 @@ public class BluetoothController {
     }
 
     // Given a MAC address returns the Bluetooth device object if paired
-    public BluetoothDevice getPairedBluetoothDevice(final String MAC) {
-        Set<BluetoothDevice> pairedDevices = this.myBluetoothAdapter.getBondedDevices();
-        if (pairedDevices.size() > 0) {
-            // if there are paired devices, then loop over them and get their attributes:
-            for (BluetoothDevice device : pairedDevices) {
-                if (device.getAddress().equals(MAC)) {
-                    return device;
-                }
-            }
+    public BluetoothDevice findBTDeviceByMac(final String MAC) {
+        if (isBTAvailable() && isBTEnabled()) {
+            return myBluetoothAdapter.getRemoteDevice(MAC);
+        }
+        else {
+            Utils.toast(myContext, "Turn on the Bluetooth first.");
+            return null;
+//            throw new RuntimeException("Bluetooth is not available. Can't find device by MAC");
         }
 
-        return null;
+//        Set<BluetoothDevice> pairedDevices = this.myBluetoothAdapter.getBondedDevices();
+//        if (pairedDevices.size() > 0) {
+//            // if there are paired devices, then loop over them and get their attributes:
+//            for (BluetoothDevice device : pairedDevices) {
+//                if (device.getAddress().equals(MAC)) {
+//                    return device;
+//                }
+//            }
+//        }
     }
 
     // Check if a Bluetooth device is already paired or not.
