@@ -1,15 +1,12 @@
 package com.example.bluetoothtest;
 
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Handler;
-import android.os.ParcelUuid;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -51,7 +48,7 @@ public class BluetoothController {
     private BluetoothAdapter myBluetoothAdapter;
 
     // Broadcast listeners
-    protected BluetoothBaseListener myBaselisteners;
+    protected BluetoothBaseListener myBaseListeners;
     protected BluetoothBroadcastReceiver myReceivers;
 
     // Bluetooth manager
@@ -104,7 +101,7 @@ public class BluetoothController {
         Register broadcast listeners for the current context.
      */
     protected void registerBroadCastReceivers(){
-        if (myBaselisteners == null || myContext == null){
+        if (myBaseListeners == null || myContext == null){
             return;
         }
 
@@ -116,7 +113,7 @@ public class BluetoothController {
         filter.addAction(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED);
         filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
 
-        myReceivers = new BluetoothBroadcastReceiver(myBaselisteners);
+        myReceivers = new BluetoothBroadcastReceiver(myBaseListeners);
         myContext.registerReceiver(myReceivers, filter);
     }
 
@@ -182,7 +179,9 @@ public class BluetoothController {
         Unregister the Bluetooth broadcast listeners.
      */
     public void unRegisterBluetoothBroadcastListeners(){
-        myContext.unregisterReceiver(myReceivers);
+        if (myReceivers != null) {
+            myContext.unregisterReceiver(myReceivers);
+        }
     }
 
     /*
@@ -190,10 +189,10 @@ public class BluetoothController {
         @param listener, a BluetoothBaseListener
      */
     public void setBluetoothBroadcastListeners(BluetoothBaseListener listener) {
-        this.myBaselisteners = listener;
+        this.myBaseListeners = listener;
         registerBroadCastReceivers();
         if (myBluetoothService != null) {
-//            myBluetoothService.setBluetoothListeners(myBaselisteners);
+            myBluetoothService.setBluetoothListeners(myBaseListeners);
         }
     }
 

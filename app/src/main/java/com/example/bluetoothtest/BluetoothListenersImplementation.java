@@ -8,8 +8,11 @@ public class BluetoothListenersImplementation implements BluetoothBaseListener {
     private static final String TAG = "BluetoothListenersImple";
 
     private static BluetoothController myBTController;
-    public BluetoothListenersImplementation(BluetoothController controller) {
+    private static BluetoothDataParser myBTDataParser;
+
+    public BluetoothListenersImplementation(BluetoothController controller, BluetoothDataParser dataParser) {
         myBTController = controller;
+        myBTDataParser = dataParser;
     }
 
     @Override
@@ -67,6 +70,13 @@ public class BluetoothListenersImplementation implements BluetoothBaseListener {
 
     @Override
     public void onReadData(BluetoothDevice device, byte[] data) {
+        Log.d(TAG, "onReadData: Data received from " + device.getName()
+                + " of length " + data.length);
 
+        // forward the data to the parser, which copies the data and posts a runnable to parse
+        // the data
+        if (data.length > 0){
+            myBTDataParser.dataParser(data);
+        }
     }
 }

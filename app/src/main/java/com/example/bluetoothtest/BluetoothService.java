@@ -11,9 +11,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
+
 
 /*
     This is how the phone and the camera module will communicate.
@@ -47,7 +49,12 @@ public class BluetoothService {
     private static final String TAG = "BluetoothService";
     private static final String appNAME = "EPSLSenseLab";
     private static final boolean D = true;
-    private static final int BufferSize = 1024;
+
+    /*
+        The camera can send up to 5Kb at once, but the input stream read can only give us 1058 bytes
+        at one time. It does not read all the bytes before returning.
+     */
+    private static final int BufferSize = 1024 * 2;         // 2 kb bytes
 
     // string equivalent of ESP32 UUID: 00001101-0000-1000-8000-00805f9b34fb
     // this is the generic UUID for Bluetooth Serial communication
@@ -65,16 +72,12 @@ public class BluetoothService {
     // Most probably we will not be using these in our application of phone and camera communication
     // since, phone will be the server and the camera client always.
     private BluetoothDevice myRemoteBTDevice;
-    private UUID myRemoteBTDeviceUUID;
-
-    // Constants that indicates the current connection state
-//    public static final int STATE_NONE = 0; // bluetooth is inactive
-//    public static final int STATE_ACCEPTING = 1; // accepting new connections
-//    public static final int STATE_CONNECTED = 2; // bluetooth connection established
-//    public static final int STATE_CONNECTING = 3; // connecting as a bluetooth client
 
     // State variable, that tracks the state of Bluetooth process currently running
     private int myState;
+
+    // Bluetooth listeners
+    private BluetoothBaseListener myBaseListeners;
 
     // Constructor
     public BluetoothService(BluetoothAdapter mBTAdapter) {
@@ -94,8 +97,21 @@ public class BluetoothService {
     Set the current connection state
      */
     public synchronized void setState(int mS) {
+
         myState = mS;
+        if(myBaseListeners != null) {
+            myBaseListeners.onBluetoothServiceStateChanged(mS);
+        }
     }
+
+    /*
+        Set Bluetooth listeners
+        @param: BluetoothBaseListener
+     */
+    public synchronized void setBluetoothListeners(BluetoothBaseListener listener) {
+        this.myBaseListeners = listener;
+    }
+
 
     /*
     1. One device opens a server socket, and the other must initiate the connection using the server
@@ -547,25 +563,25 @@ public class BluetoothService {
                         Log.d(TAG, "connected thread: waiting for data over receive stream");
 
                     // read data from input stream, until the buffer is full or no more bytes are left to read
-                    nBytes = mmInputStream.read(buffer,  0, buffer.length);
+                    nBytes = mmInputStream.read(buffer,  0, 1024 * 2);
 
                     // log the read data: We assume the read bytes is text
                     if(nBytes > 0) {
-                        String inMessage = new String(buffer, 0, nBytes);
-                        Log.d(TAG, "run: Read Data: " + inMessage);
+//                        String inMessage = new String(buffer, 0, nBytes);
+//                        Log.d(TAG, "run: Read Data: " + inMessage);
 
                         // in here call the on data listener to process the received data.
-//                        byte[] data = Arrays.copyOf(buffer, bytes);
-//                        if (mBluetoothListener != null) {
-//                            ((BluetoothListener) mBluetoothListener).onReadData(mmSocket.getRemoteDevice(), data);
-//                        }
+                        byte[] data = Arrays.copyOf(buffer, nBytes);
+                        if (myBaseListeners != null) {
+                            ((BluetoothBaseListener) myBaseListeners).onReadData(mmSocket.getRemoteDevice(), data);
+                        }
                     }
 
                 } catch (IOException e) {
                     Log.e(TAG, "run: Error reading data from BT device", e);
 
                     //TODO Connection lost. Do you want to start the service again or not??
-//                    connectionLost();
+                    connectionLost();
 
                     // need to first verify the state variable
 //                    setState(BluetoothState.STATE_DISCONNECTED);

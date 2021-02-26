@@ -40,6 +40,9 @@ public class MainActivity extends AppCompatActivity{
     // The implementations of the Bluetooth broadcast listeners.
     private BluetoothListenersImplementation myBluetoothBCListeners;
 
+    // Bluetooth data parser
+    private BluetoothDataParser myBluetooothDataParser;
+
     // One Plus MAC Address : "64:A2:F9:3E:95:9D"
     // Galaxy S4 MAC Address : "C4:50:06:83:F4:7E"
     // Camera MAC Address : "FC:F5:C4:0D:05:D6"
@@ -48,9 +51,6 @@ public class MainActivity extends AppCompatActivity{
     // will be client.
     final String serverMAC = "FC:F5:C4:0D:05:D6";
     final String clientMAC = "FC:F5:C4:0D:05:D6";
-
-    // Bluetooth service that handle Bluetooth connections and data transmission
-//    private BluetoothService myBluetoothService;
 
     // UI items
     Button onButton, offButton, discoverButton, scanButton, pairButton, pairedButton,
@@ -61,8 +61,6 @@ public class MainActivity extends AppCompatActivity{
     Boolean acceptingConnection = false;
     Boolean alreadyConnected = false;
 
-    private static Boolean doWeHaveBluetooth = false;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -71,14 +69,15 @@ public class MainActivity extends AppCompatActivity{
         // get the object of Bluetooth manager class
         myBluetoothController = new BluetoothController(this);
 
+        // create an instance of the Bluetooth data parser class
+        myBluetooothDataParser = new BluetoothDataParser(myBluetoothController);
+
         // create the functions for the
-        myBluetoothBCListeners = new BluetoothListenersImplementation(myBluetoothController);
+        myBluetoothBCListeners = new BluetoothListenersImplementation(myBluetoothController,
+                myBluetooothDataParser);
 
         // set the broadcast listeners
         myBluetoothController.setBluetoothBroadcastListeners(myBluetoothBCListeners);
-
-        // get the object of the Bluetooth service class
-//        myBluetoothService = new BluetoothService(myBluetoothController.getMyBluetoothAdapter());
 
         // find the UI elements
         onButton = (Button) findViewById(R.id.onSwitch);
@@ -208,15 +207,10 @@ public class MainActivity extends AppCompatActivity{
     @Override
     protected void onStart() {
         super.onStart();
-        // register broadcast receivers
-//        myBluetoothController.registerBroadcastReceivers();
-
     }
 
     @Override
     protected void onDestroy() {
-        // unregister the broadcast receivers
-//        myBluetoothController.unregisterBroadcastReceivers();
         myBluetoothController.unRegisterBluetoothBroadcastListeners();
         super.onDestroy();
     }
