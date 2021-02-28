@@ -212,6 +212,7 @@ public class MainActivity extends AppCompatActivity{
     @Override
     protected void onDestroy() {
         myBluetoothController.unRegisterBluetoothBroadcastListeners();
+        myBluetooothDataParser.stopHandlerThread();
         super.onDestroy();
     }
 

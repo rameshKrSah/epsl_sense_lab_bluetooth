@@ -420,6 +420,9 @@ public class BluetoothController {
         Send data (write) over any Bluetooth connection that is running.
      */
     public void sendData(byte [] data) {
-        myBluetoothService.writeBytes(data);
+        if (data.length > 0) {
+            Log.d(TAG, "sendData: BT write, data length " + data.length);
+            myBluetoothService.writeBytes(data);
+        }
     }
 }
