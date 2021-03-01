@@ -70,7 +70,7 @@ public class MainActivity extends AppCompatActivity{
         myBluetoothController = new BluetoothController(this);
 
         // create an instance of the Bluetooth data parser class
-        myBluetooothDataParser = new BluetoothDataParser(myBluetoothController);
+        myBluetooothDataParser = new BluetoothDataParser(myBluetoothController, getApplicationContext());
 
         // create the functions for the
         myBluetoothBCListeners = new BluetoothListenersImplementation(myBluetoothController,

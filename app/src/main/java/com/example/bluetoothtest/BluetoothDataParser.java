@@ -1,9 +1,14 @@
 package com.example.bluetoothtest;
 
+import android.content.Context;
+import android.os.AsyncTask;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -21,12 +26,14 @@ public class BluetoothDataParser {
     private static final String TAG = "BluetoothDataParser";
     private static final String HANDLER_THREAD_NAME = "DATA_PARSER_THREAD";
     private static final boolean D = true;
+    private static Context myContext;
 
     private static final int _PREAMBLE_LENGTH = 6;
     private static final int _imageBufferSize = 500 * 1024;     // 500 kb buffer for image
     private static byte[] _imageBuffer = new byte[_imageBufferSize];
     private static int _currentImageBufferPosition = 0;
     private volatile boolean _image_flag = false;
+    private static int _currentImagePacketNumber = 0;
 
     private static final int _commandBufferSize = 500;
     private static byte[] _commandBuffer = new byte[_commandBufferSize];
@@ -109,15 +116,18 @@ public class BluetoothDataParser {
 
     private static final String I_AM_READY_RESPONSE = "i am ready";
     private static final String OK_RESPONSE = "ok";
+    private static final String WAIT_RESPONSE = "wait";
     private static final String IMAGE_RECEIVED_RESPONSE = "image received";
     private static final String TIME_RESPONSE = "time:";
+    private static final String INVALID_PACKET_NUMBER_RESPONSE = "invalid packet number";
 
     /**
      * Constructor class for the Bluetooth data parser.
      * @param BluetoothController class instance
      */
-    public BluetoothDataParser(BluetoothController controller) {
+    public BluetoothDataParser(BluetoothController controller, Context context) {
         myBtController = controller;
+        myContext = context;
 
         // create the handler thread
         myDataParserThread = new dataParserThread(HANDLER_THREAD_NAME);
@@ -142,8 +152,8 @@ public class BluetoothDataParser {
      * @param buffer byte
      */
     public void dataParser(byte [] buffer) {
-        if (buffer.length > _commandBufferSize || buffer.length == 0) {
-            Log.d(TAG, "dataParser: rcvd cmd buf size larger or zero");
+        if (buffer.length == 0) {
+            Log.d(TAG, "dataParser: rcvd buffer size zero");
             return;
         }
 
@@ -171,17 +181,25 @@ public class BluetoothDataParser {
         }
     }
 
+    int getIntFromByte(byte b) {
+//        return b < 0 ? b + 256 : b;
+        return ((int) b) & 0xff;
+    }
+
+    long getLongFromInt(byte b) {
+       return ((long) b) & 0xffL;
+    }
 
     /**
      * Data parser runnable. This task is posted each time command is
      * received on Bluetooth.
      *
      */
-    private class _parseData implements Runnable{
+    private class _parseData implements Runnable {
         private byte[] cmdBuffer;
         private int cmdLength;
 
-        public _parseData(byte [] buffer) {
+        public _parseData(byte[] buffer) {
             // copy the command
             cmdBuffer = new byte[buffer.length];
             cmdLength = buffer.length;
@@ -190,23 +208,32 @@ public class BluetoothDataParser {
 
         @Override
         public void run() {
-            Log.d(TAG, "_parserData run: rcvd cmd | "
-                    + new String(cmdBuffer, _PREAMBLE_LENGTH, cmdLength - _PREAMBLE_LENGTH) + " | len: " + cmdLength);
+            Log.d(TAG, "_parserData run: len: " + cmdLength);
 
             // now we start parsing the data
             byte header = cmdBuffer[0];
             byte category = cmdBuffer[1];
-            int payloadLength = (cmdBuffer[2] | cmdBuffer[3] >> 8);
-            int packetNumber = (cmdBuffer[4] | cmdBuffer[5] >> 8);
 
-            if(header == BLUETOOTH_COMM_TYPE.BT_REQUEST.getValue()) {
+            // in JAVA bytes are signed and we are sending unsigned bytes from camera. This can be
+            // a problem. Even after casting bytes into long we can only go up to 250, any values
+            // beyond that does not work and is capped out at 250. The problem is evident when
+            // sending image, where the payload length is > 250 and maybe this will also effect the
+            // image data. But that is yet to be verified.
+//            long payloadLength = getLongFromInt(cmdBuffer[2]) | getLongFromInt(cmdBuffer[3]) >> 8;
+            int packetNumber = getIntFromByte(cmdBuffer[4]) | getIntFromByte(cmdBuffer[5]) >> 8;
+
+            // to fix the problem with the payload length, we will extract that information directly
+            // from the fact that we know how the data packet is organized.
+            int payloadLength = cmdLength - _PREAMBLE_LENGTH;
+
+            if (header == BLUETOOTH_COMM_TYPE.BT_REQUEST.getValue()) {
                 // we have received request over Bluetooth
                 Log.d(TAG, "_parserData run: bt request");
                 _handleBTRequest(category, new String(cmdBuffer, _PREAMBLE_LENGTH, payloadLength));
 
-            } else if (header == BLUETOOTH_COMM_TYPE.BT_DATA.getValue()){
+            } else if (header == BLUETOOTH_COMM_TYPE.BT_DATA.getValue()) {
                 Log.d(TAG, "_parserData run: bt data");
-                _handleBTData(cmdBuffer);
+                _handleBTData(category, cmdBuffer, packetNumber);
 
             } else if (header == BLUETOOTH_COMM_TYPE.BT_RESPONSE.getValue()) {
                 Log.d(TAG, "_parserData run: bt response");
@@ -216,111 +243,115 @@ public class BluetoothDataParser {
             Log.d(TAG, "_parserData run: payload length " + payloadLength
                     + " packet number " + packetNumber);
         }
-
-        /**
-         * Process the data received over Bluetooth and send response if needed.
-         * @param data
-         */
-        public void _handleBTData(byte [] data) {
-            if(data.length > 0 && _image_flag) {
-                System.arraycopy(data, 0, _imageBuffer, _currentImageBufferPosition, data.length);
-                _currentImageBufferPosition += data.length;
-
-                // send the response
-                myDataParserThread.postTask(new _sendResponse(
-                        _prepareResponse(BLUETOOTH_COMM_TYPE.BT_DATA.getValue(),
-                                BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_IMAGE_DATA.getValue(),
-                                String.valueOf(data.length).getBytes()),
-                        myBtController));
-            }
-        }
-
-        /**
-         * Process the Bluetooth request and send response if needed.
-         * @param requestCategory
-         * @param requestPayload
-         */
-        public void _handleBTRequest(byte requestCategory, String requestPayload) {
-            Log.d(TAG, "_handleBTRequest: "+requestPayload);
-
-            if (requestCategory == BLUETOOTH_REQUEST_TYPE.TIME_REQUEST.getValue()) {
-                Log.d(TAG, "_handleBTRequest: time request");
-
-                // send the millis from Epoch time as response
-                myDataParserThread.postTask(new _sendResponse(
-                        _prepareResponse(BLUETOOTH_COMM_TYPE.BT_RESPONSE.getValue(),
-                                BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_TIME_REQUEST.getValue(),
-                                _getCurrentTimeResponse()),
-                        myBtController));
-
-            } else if (requestCategory == BLUETOOTH_REQUEST_TYPE.IMAGE_INCOMING_REQUEST.getValue()) {
-                Log.d(TAG, "_handleBTRequest: incoming image request");
-
-                // prepare to receive the image data
-                _image_flag = true;
-                _currentImageBufferPosition = 0;
-
-                // send the response
-                myDataParserThread.postTask(new _sendResponse(
-                        _prepareResponse(BLUETOOTH_COMM_TYPE.BT_RESPONSE.getValue(),
-                                BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_IMAGE_INCOMING_REQUEST.getValue(),
-                                OK_RESPONSE.getBytes()),
-                        myBtController));
-
-            } else if (requestCategory == BLUETOOTH_REQUEST_TYPE.ARE_YOU_READY_REQUEST.getValue()) {
-                Log.d(TAG, "_handleBTRequest: are you ready request");
-
-                // send the response
-                myDataParserThread.postTask(new _sendResponse(
-                        _prepareResponse(BLUETOOTH_COMM_TYPE.BT_RESPONSE.getValue(),
-                                BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_ARE_YOU_READY_REQUEST.getValue(),
-                                I_AM_READY_RESPONSE.getBytes()),
-                        myBtController));
-
-            } else if (requestCategory == BLUETOOTH_REQUEST_TYPE.IMAGE_SENT_REQUEST.getValue()) {
-                Log.d(TAG, "_handleBTRequest: image sent request");
-
-                _image_flag = false;
-                // save the image to local storage
-
-                // send the response
-                myDataParserThread.postTask(new _sendResponse(
-                        _prepareResponse(BLUETOOTH_COMM_TYPE.BT_RESPONSE.getValue(),
-                                BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_IMAGE_SENT_REQUEST.getValue(),
-                                IMAGE_RECEIVED_RESPONSE.getBytes()),
-                        myBtController));
-            }
-        }
     }
 
-    public static void reverse(byte[] array) {
-        if (array == null) {
-            return;
-        }
-        int i = 0;
-        int j = array.length - 1;
-        byte tmp;
-        while (j > i) {
-            tmp = array[j];
-            array[j] = array[i];
-            array[i] = tmp;
-            j--;
-            i++;
+    /**
+     * Process the data received over Bluetooth and send response if needed.
+     * @param dataCategory
+     * @param data
+     * @param packetNumber
+     */
+    public void _handleBTData(byte dataCategory, byte [] data, int packetNumber) {
+        if (dataCategory == BLUETOOTH_DATA_TYPE.IMAGE_DATA.getValue()) {
+            Log.d(TAG, "_handleBTData: image date, pkt number "+packetNumber);
+            if(data.length > 0 && _image_flag) {
+                // extract the payload length
+                int len = data.length - _PREAMBLE_LENGTH;
+
+                // check the packet number. We are expecting a packet that is one greater than
+                // current one.
+//                if (_currentImagePacketNumber + 1 == packetNumber) {
+                    // copy the image data into the buffer
+                    System.arraycopy(data, _PREAMBLE_LENGTH, _imageBuffer, _currentImageBufferPosition,
+                            len);
+
+                    // change the image buffer properties
+                    _currentImageBufferPosition += len;
+                    _currentImagePacketNumber = packetNumber;
+
+                    // send the response
+                    myDataParserThread.postTask(new _sendResponse(
+                            _prepareResponse(BLUETOOTH_COMM_TYPE.BT_RESPONSE.getValue(),
+                                    BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_IMAGE_DATA.getValue(),
+                                    String.valueOf(len).getBytes()),
+                            myBtController));
+//                } else {
+//                    // invalid packet number response
+//                    myDataParserThread.postTask(new _sendResponse(
+//                            _prepareResponse(BLUETOOTH_COMM_TYPE.BT_RESPONSE.getValue(),
+//                                    BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_IMAGE_DATA.getValue(),
+//                                    INVALID_PACKET_NUMBER_RESPONSE.getBytes()),
+//                            myBtController));
+//                }
+            }
         }
     }
 
     /**
-     * Prepare the response for BT_TIME_REQUEST.
-     * @return byte []
+     * Process the Bluetooth request and send response if needed.
+     * @param requestCategory
+     * @param requestPayload
      */
-    private byte [] _getCurrentTimeResponse() {
-        long timeStamp = Utils.getCurrentTime();
-        byte[] bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(timeStamp).array();
-        Log.d(TAG, "_getCurrentTimeResponse: " + String.valueOf(timeStamp));
-//        Collections.reverse(Arrays.asList(bytes));
-        reverse(bytes);
-        return bytes;
+    public void _handleBTRequest(byte requestCategory, String requestPayload) {
+        Log.d(TAG, "_handleBTRequest: payload:  "+ requestPayload);
+
+        if (requestCategory == BLUETOOTH_REQUEST_TYPE.TIME_REQUEST.getValue()) {
+            Log.d(TAG, "_handleBTRequest: time request");
+
+            // send the millis from Epoch time as response
+            myDataParserThread.postTask(new _sendResponse(
+                    _prepareResponse(BLUETOOTH_COMM_TYPE.BT_RESPONSE.getValue(),
+                            BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_TIME_REQUEST.getValue(),
+                            _getCurrentTimeResponse()),
+                    myBtController));
+
+        } else if (requestCategory == BLUETOOTH_REQUEST_TYPE.IMAGE_INCOMING_REQUEST.getValue()) {
+            Log.d(TAG, "_handleBTRequest: incoming image request");
+
+            // prepare to receive the image data
+            _image_flag = true;
+            _currentImageBufferPosition = 0;
+            _currentImagePacketNumber = 0;
+
+            // send the response
+            myDataParserThread.postTask(new _sendResponse(
+                    _prepareResponse(BLUETOOTH_COMM_TYPE.BT_RESPONSE.getValue(),
+                            BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_IMAGE_INCOMING_REQUEST.getValue(),
+                            OK_RESPONSE.getBytes()),
+                    myBtController));
+
+        } else if (requestCategory == BLUETOOTH_REQUEST_TYPE.ARE_YOU_READY_REQUEST.getValue()) {
+            Log.d(TAG, "_handleBTRequest: are you ready request");
+
+            // send the response
+            myDataParserThread.postTask(new _sendResponse(
+                    _prepareResponse(BLUETOOTH_COMM_TYPE.BT_RESPONSE.getValue(),
+                            BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_ARE_YOU_READY_REQUEST.getValue(),
+                            I_AM_READY_RESPONSE.getBytes()),
+                    myBtController));
+
+        } else if (requestCategory == BLUETOOTH_REQUEST_TYPE.IMAGE_SENT_REQUEST.getValue()) {
+            Log.d(TAG, "_handleBTRequest: image sent request");
+
+            // reset the image flag.
+            _image_flag = false;
+
+            // save the image to local storage
+            new SavePhotoTask().execute(_imageBuffer);
+
+            // reset the image buffer position.
+            _currentImageBufferPosition = 0;
+            _currentImagePacketNumber = 0;
+
+            // send the response
+            myDataParserThread.postTask(new _sendResponse(
+                    _prepareResponse(BLUETOOTH_COMM_TYPE.BT_RESPONSE.getValue(),
+                            BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_IMAGE_SENT_REQUEST.getValue(),
+                            IMAGE_RECEIVED_RESPONSE.getBytes()),
+                    myBtController));
+        }
     }
+//    }
 
     /**
      * Prepare the response for Bluetooth requests.
@@ -331,7 +362,7 @@ public class BluetoothDataParser {
      */
     private byte [] _prepareResponse(byte commType, byte category, byte [] payload) {
         int temp = payload.length;
-        byte[] returnArr = new byte[temp + _PREAMBLE_LENGTH];
+        byte[] returnArr = new byte[temp + _PREAMBLE_LENGTH + 1];
 
         // set the communication type: Request, Data, or Response
         returnArr[0] = commType;
@@ -349,6 +380,7 @@ public class BluetoothDataParser {
 
         // now copy the payload.
         System.arraycopy(payload, 0, returnArr, _PREAMBLE_LENGTH, payload.length);
+        returnArr[payload.length + _PREAMBLE_LENGTH] = '\0';    // this is added for string
         return returnArr;
     }
 
@@ -381,6 +413,64 @@ public class BluetoothDataParser {
          */
         public void prepareHandler(){
             dataParserHandler = new Handler(getLooper());
+        }
+    }
+
+    /**
+     * Reverse a byte array in-place.
+     * @param array
+     */
+    public static void reverse(byte[] array) {
+        if (array == null) {
+            return;
+        }
+        int i = 0;
+        int j = array.length - 1;
+        byte tmp;
+        while (j > i) {
+            tmp = array[j];
+            array[j] = array[i];
+            array[i] = tmp;
+            j--;
+            i++;
+        }
+    }
+
+    /**
+     * Prepare the response for BT_TIME_REQUEST.
+     * @return byte []
+     */
+    private byte [] _getCurrentTimeResponse() {
+        long timeStamp = Utils.getCurrentTime();
+        byte[] bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(timeStamp).array();
+        Log.d(TAG, "_getCurrentTimeResponse: " + String.valueOf(timeStamp));
+        reverse(bytes);
+        return bytes;
+    }
+
+
+    /**
+     * AsyncTask to save the photo in the memory.
+     */
+    class SavePhotoTask extends AsyncTask<byte[], String, String> {
+        @Override
+        protected String doInBackground(byte[]... jpeg) {
+            File photo = new File(myContext.getExternalFilesDir("Pictures"), "photo.jpg");
+            if (photo.exists()) {
+                Log.d(TAG, "SavePhotoTask: file exists, deleting...");
+                photo.delete();
+            }
+
+            try {
+                FileOutputStream fos = new FileOutputStream(photo.getPath());
+                fos.write(jpeg[0]);
+                fos.close();
+            }
+            catch (java.io.IOException e) {
+                Log.e("SavePhotoTask", "Exception in photoCallback", e);
+            }
+
+            return(null);
         }
     }
 }
