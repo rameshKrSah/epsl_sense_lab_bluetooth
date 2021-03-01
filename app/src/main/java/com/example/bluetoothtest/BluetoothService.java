@@ -559,13 +559,17 @@ public class BluetoothService {
             // keep listening to the Input Stream while connected or until an exception occurs
             while(true) {
                 try {
-                    if(D)
-                        Log.d(TAG, "connected thread: waiting for data over receive stream");
+//                    if(D)
+//                        Log.d(TAG, "connected thread: waiting for data over receive stream");
+
+                    // this delay is added so that we read all the data sent by the camera at once.
+                    // without this large packets get divided while reading from Bluetooth input
+                    // stream. Since Connected Thread is not a UI thread we are safe to use this here.
+                    Thread.sleep(100);
 
                     // read data from input stream, until the buffer is full or no more bytes are left to read
-                    nBytes = mmInputStream.read(buffer,  0, 1024 * 2);
+                    nBytes = mmInputStream.read(buffer,  0, BufferSize);
 
-                    // log the read data: We assume the read bytes is text
                     if(nBytes > 0) {
 //                        String inMessage = new String(buffer, 0, nBytes);
 //                        Log.d(TAG, "run: Read Data: " + inMessage);
@@ -577,7 +581,7 @@ public class BluetoothService {
                         }
                     }
 
-                } catch (IOException e) {
+                } catch (IOException | InterruptedException e) {
                     Log.e(TAG, "run: Error reading data from BT device", e);
 
                     //TODO Connection lost. Do you want to start the service again or not??

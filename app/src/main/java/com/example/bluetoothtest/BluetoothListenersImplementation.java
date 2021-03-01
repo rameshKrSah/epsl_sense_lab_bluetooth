@@ -71,7 +71,7 @@ public class BluetoothListenersImplementation implements BluetoothBaseListener {
     @Override
     public void onReadData(BluetoothDevice device, byte[] data) {
         Log.d(TAG, "onReadData: Data received from " + device.getName()
-                + " of length " + data.length);
+                + " of length " + data.length + "\n\n");
 
         // forward the data to the parser, which copies the data and posts a runnable to parse
         // the data

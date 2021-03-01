@@ -29,17 +29,17 @@ public class BluetoothDataParser {
     private static Context myContext;
 
     private static final int _PREAMBLE_LENGTH = 6;
-    private static final int _imageBufferSize = 500 * 1024;     // 500 kb buffer for image
+    private static final int _imageBufferSize = 1024 * 1024;     // 1 mb buffer for image
     private static byte[] _imageBuffer = new byte[_imageBufferSize];
     private static int _currentImageBufferPosition = 0;
     private volatile boolean _image_flag = false;
     private static int _currentImagePacketNumber = 0;
 
-    private static final int _commandBufferSize = 500;
-    private static byte[] _commandBuffer = new byte[_commandBufferSize];
-    private static int _commandLength = 0;
-    private static byte[] _responseBuffer = new byte[_commandBufferSize];
-    private static int _responseLength = 0;
+//    private static final int _commandBufferSize = 500;
+//    private static byte[] _commandBuffer = new byte[_commandBufferSize];
+//    private static int _commandLength = 0;
+//    private static byte[] _responseBuffer = new byte[_commandBufferSize];
+//    private static int _responseLength = 0;
 
     private static BluetoothController myBtController;
     private dataParserThread myDataParserThread;
@@ -210,6 +210,10 @@ public class BluetoothDataParser {
         public void run() {
             Log.d(TAG, "_parserData run: len: " + cmdLength);
 
+            if (cmdLength < _PREAMBLE_LENGTH) {
+                return;
+            }
+
             // now we start parsing the data
             byte header = cmdBuffer[0];
             byte category = cmdBuffer[1];
@@ -262,7 +266,8 @@ public class BluetoothDataParser {
                 // current one.
 //                if (_currentImagePacketNumber + 1 == packetNumber) {
                     // copy the image data into the buffer
-                    System.arraycopy(data, _PREAMBLE_LENGTH, _imageBuffer, _currentImageBufferPosition,
+                    System.arraycopy(data, _PREAMBLE_LENGTH, _imageBuffer,
+                            _currentImageBufferPosition,
                             len);
 
                     // change the image buffer properties
@@ -331,17 +336,7 @@ public class BluetoothDataParser {
                     myBtController));
 
         } else if (requestCategory == BLUETOOTH_REQUEST_TYPE.IMAGE_SENT_REQUEST.getValue()) {
-            Log.d(TAG, "_handleBTRequest: image sent request");
-
-            // reset the image flag.
-            _image_flag = false;
-
-            // save the image to local storage
-            new SavePhotoTask().execute(_imageBuffer);
-
-            // reset the image buffer position.
-            _currentImageBufferPosition = 0;
-            _currentImagePacketNumber = 0;
+            Log.d(TAG, "_handleBTRequest: image sent request, file name " + requestPayload);
 
             // send the response
             myDataParserThread.postTask(new _sendResponse(
@@ -349,6 +344,16 @@ public class BluetoothDataParser {
                             BLUETOOTH_RESPONSE_TYPE.RESPONSE_FOR_IMAGE_SENT_REQUEST.getValue(),
                             IMAGE_RECEIVED_RESPONSE.getBytes()),
                     myBtController));
+
+            // reset the image flag.
+            _image_flag = false;
+
+            // save the image to local storage
+            new SavePhotoTask().execute(_imageBuffer, requestPayload);
+
+            // reset the image buffer position.
+            _currentImageBufferPosition = 0;
+            _currentImagePacketNumber = 0;
         }
     }
 //    }
@@ -452,10 +457,10 @@ public class BluetoothDataParser {
     /**
      * AsyncTask to save the photo in the memory.
      */
-    class SavePhotoTask extends AsyncTask<byte[], String, String> {
+    class SavePhotoTask extends AsyncTask<Object, String, String> {
         @Override
-        protected String doInBackground(byte[]... jpeg) {
-            File photo = new File(myContext.getExternalFilesDir("Pictures"), "photo.jpg");
+        protected String doInBackground(Object... objects) {
+            File photo = new File(myContext.getExternalFilesDir("Pictures"), (String)objects[1]);
             if (photo.exists()) {
                 Log.d(TAG, "SavePhotoTask: file exists, deleting...");
                 photo.delete();
@@ -463,7 +468,7 @@ public class BluetoothDataParser {
 
             try {
                 FileOutputStream fos = new FileOutputStream(photo.getPath());
-                fos.write(jpeg[0]);
+                fos.write((byte [])objects[0]);
                 fos.close();
             }
             catch (java.io.IOException e) {
