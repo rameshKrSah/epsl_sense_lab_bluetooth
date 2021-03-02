@@ -86,15 +86,17 @@ public class BluetoothService {
         // we may need to pass an handler to inform the UI thread about the Bluetooth events
     }
 
-    /*
-    Return the current connection state
+    /**
+     * Return the current connection state
+     * @return int
      */
     public synchronized int getState() {
         return myState;
     }
 
-    /*
-    Set the current connection state
+    /**
+     * Set the current connection state
+     * @param mS (int)
      */
     public synchronized void setState(int mS) {
 
@@ -104,9 +106,9 @@ public class BluetoothService {
         }
     }
 
-    /*
-        Set Bluetooth listeners
-        @param: BluetoothBaseListener
+    /**
+     * Set Bluetooth listeners
+     * @param BluetoothBaseListener
      */
     public synchronized void setBluetoothListeners(BluetoothBaseListener listener) {
         this.myBaseListeners = listener;
@@ -128,9 +130,9 @@ public class BluetoothService {
     should be discarded.
      */
 
-    /*
-    Start accepting bluetooth connections. The phone will be server and waits for the client
-    (camera) to initiate the connection.
+    /**
+     * Start accepting bluetooth connections. The phone will be server and waits for the client
+     * (camera) to initiate the connection.
      */
     public synchronized void startServer() {
 
@@ -155,9 +157,10 @@ public class BluetoothService {
         }
     }
 
-    /*
-    Stop accepting bluetooth connections from remote devices.
- */
+
+    /**
+     * Stop accepting bluetooth connections from remote devices.
+     */
     public synchronized void stopServer() {
         // close accept threads if any
         stopAcceptThread();
@@ -171,10 +174,11 @@ public class BluetoothService {
         }
     }
 
-    /*
-    Starts the connect thread to initiate connection to a Bluetooth server. The function calling
-    device will be the client and the accept thread running device will be the server.
-    */
+    /**
+     * Starts the connect thread to initiate connection to a Bluetooth server. The function calling
+     * device will be the client and the accept thread running device will be the server.
+     * @param serverDevice
+     */
     public synchronized void startClient(final BluetoothDevice serverDevice) {
         if(D)
             Log.d(TAG, "startClient: starting connect thread");
@@ -194,9 +198,9 @@ public class BluetoothService {
         setState(BluetoothState.STATE_CONNECTING);
     }
 
-    /*
-        Stop the Bluetooth client from connecting to the remote device or close the connected
-        connection to the remote device.
+    /**
+     * Stop the Bluetooth client from connecting to the remote device or close the connected
+     * connection to the remote device.
      */
     public synchronized void stopClient() {
         // stop any connecting thread if any
@@ -211,9 +215,10 @@ public class BluetoothService {
         }
     }
 
-    /*
-    This function is called once a bluetooth connection is established. Starts the connected thread
-    to manage a Bluetooth connection.
+    /**
+     *  This function is called once a bluetooth connection is established. Starts the connected thread
+     *  to manage a Bluetooth connection.
+     * @param mmSocket (BluetoothSocket)
      */
     private synchronized void manageConnectedSocket(BluetoothSocket mmSocket) {
         if(D)
@@ -236,8 +241,8 @@ public class BluetoothService {
     }
 
 
-    /*
-        Stop any thread that is running which accepts connections from remote devices.
+    /**
+     * Stop any thread that is running which accepts connections from remote devices.
      */
     private synchronized void stopAcceptThread() {
         if(myAcceptThread != null) {
@@ -248,8 +253,8 @@ public class BluetoothService {
         }
     }
 
-    /*
-        Stop the connecting thread, which attempts to connect to the remote device.
+    /**
+     * Stop the connecting thread, which attempts to connect to the remote device
      */
     private synchronized void stopConnectingThread() {
 
@@ -261,8 +266,8 @@ public class BluetoothService {
         }
     }
 
-    /*
-    Close any thread that is currently running bluetooth connections.
+    /**
+     * Close any thread that is currently running bluetooth connections.
      */
     private synchronized void stopConnectedThread() {
         if(myConnectedThread != null) {
@@ -279,8 +284,8 @@ public class BluetoothService {
     }
 
 
-    /*
-        Stop all Bluetooth threads.
+    /**
+     * Stop all Bluetooth threads.
      */
     public synchronized void stopAllThread() {
         if(D)
@@ -300,8 +305,9 @@ public class BluetoothService {
     }
 
 
-    /*
-    Write data to the connected thread in an unsynchronized manner
+    /**
+     * Write data to the connected thread in an unsynchronized manner
+     * @param outBuffer (byte [])
      */
     public void writeBytes(byte[] outBuffer) {
         ConnectedThread r;
@@ -319,10 +325,10 @@ public class BluetoothService {
         r.write(outBuffer, 0, outBuffer.length);
     }
 
-    /*
-        This function is called to re-establish the bluetooth connection with the camera module
-        if the connection was failed to be established. We try to connect to the camera after 5
-        seconds.
+    /**
+     * This function is called to re-establish the bluetooth connection with the camera module
+     * if the connection was failed to be established. We try to connect to the camera after 5
+     * seconds.
      */
     private void connectionFailed() {
         // after sometime (5 seconds) again try to connect to the same remote device
@@ -336,23 +342,24 @@ public class BluetoothService {
         }, 5000);
     }
 
-    /*
-        Connection lost to the remote device. Start the bluetooth server again and wait for the
-        incoming connection.
+    /**
+     * Connection lost to the remote device. Start the bluetooth server again and wait for the
+     * incoming connection.
      */
     private void connectionLost() {
         BluetoothService.this.startServer();
     }
 
-    /*
-        Get remote connected device
+    /**
+     * Get remote connected device
+     * @return BluetoothDevice
      */
     public BluetoothDevice getRemoteConnectedDevice() { return myRemoteBTDevice;}
 
-    /*
-    This thread runs while listening for incoming Bluetooth connections. This thread makes the phone
-    a sever and the camera module will be the client. It runs until a connection is accepted or
-    (or until canceled).
+    /**
+     * This thread runs while listening for incoming Bluetooth connections. This thread makes the phone
+     * a sever and the camera module will be the client. It runs until a connection is accepted or
+     * (or until canceled)
      */
     private class AcceptThread extends Thread {
         /*
@@ -440,10 +447,10 @@ public class BluetoothService {
         }
     }
 
-    /*
-    This thread runs while attempting to make outgoing connection with a device. Here, the phone
-    is the client that want to connect to a Bluetooth server. This thread runs straight through and
-    the connection either succeeds or fails.
+    /**
+     * This thread runs while attempting to make outgoing connection with a device. Here, the phone
+     * is the client that want to connect to a Bluetooth server. This thread runs straight through and
+     * the connection either succeeds or fails.
      */
     private class ConnectThread extends Thread {
         private BluetoothSocket mmSocket;
@@ -517,9 +524,9 @@ public class BluetoothService {
     }
 
 
-    /*
-    This thread is responsible for maintaining the Bluetooth connection, sending the data, and
-    receiving the data.
+    /**
+     * This thread is responsible for maintaining the Bluetooth connection, sending the data, and
+     * receiving the data.
      */
     private class ConnectedThread extends Thread {
         private final BluetoothSocket mmSocket;
@@ -559,9 +566,6 @@ public class BluetoothService {
             // keep listening to the Input Stream while connected or until an exception occurs
             while(true) {
                 try {
-//                    if(D)
-//                        Log.d(TAG, "connected thread: waiting for data over receive stream");
-
                     // this delay is added so that we read all the data sent by the camera at once.
                     // without this large packets get divided while reading from Bluetooth input
                     // stream. Since Connected Thread is not a UI thread we are safe to use this here.

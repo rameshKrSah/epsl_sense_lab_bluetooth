@@ -97,7 +97,7 @@ public class BluetoothController {
         myHandler = new Handler();
     }
 
-    /*
+    /**
         Register broadcast listeners for the current context.
      */
     protected void registerBroadCastReceivers(){
@@ -117,8 +117,8 @@ public class BluetoothController {
         myContext.registerReceiver(myReceivers, filter);
     }
 
-    /*
-    Scan for Bluetooth devices and cancel the discovery after the scan period.
+    /**
+        Scan for Bluetooth devices and cancel the discovery after the scan period.
     */
     private void scanForBluetoothDevices() {
         // if not already scanning, start the scan with a runnable which is called automatically
@@ -145,7 +145,7 @@ public class BluetoothController {
         }
     }
 
-    /*
+    /**
         Check if a Bluetooth device is already paired or not.
         @param: deviceMAC: MAC address
     */
@@ -166,7 +166,7 @@ public class BluetoothController {
         return false;
     }
 
-    /*
+    /**
         Wrapper function for the status text field in the main activity.
         Comment out in final version.
     */
@@ -175,7 +175,7 @@ public class BluetoothController {
     }
 
 
-    /*
+    /**
         Unregister the Bluetooth broadcast listeners.
      */
     public void unRegisterBluetoothBroadcastListeners(){
@@ -184,7 +184,7 @@ public class BluetoothController {
         }
     }
 
-    /*
+    /**
         Register the Bluetooth broadcast listeners.
         @param listener, a BluetoothBaseListener
      */
@@ -196,21 +196,21 @@ public class BluetoothController {
         }
     }
 
-    /*
+    /**
         Return the current device Bluetooth adapter.
      */
     public BluetoothAdapter getMyBluetoothAdapter() {
         return myBluetoothAdapter;
     }
 
-    /*
+    /**
         Is current device's Bluetooth available or not.
      */
     public boolean isBTAvailable() {
         return myBluetoothAdapter != null;
     }
 
-    /*
+    /**
         Is current device's Bluetooth enabled or not.
      */
     public boolean isBTEnabled() {
@@ -220,7 +220,7 @@ public class BluetoothController {
         return false;
     }
 
-    /*
+    /**
         Enable Bluetooth. Check whether Bluetooth is available on the device or not. If yes, check
         if it is enabled or not. If not then enable Bluetooth.
      */
@@ -233,7 +233,7 @@ public class BluetoothController {
         return myBluetoothAdapter.enable();
     }
 
-    /*
+    /**
         Disable the Bluetooth if it is turned on. Else do nothing.
      */
     public boolean disableBluetooth() {
@@ -246,7 +246,7 @@ public class BluetoothController {
         return false;
     }
 
-    /*
+    /**
         Make the phone Bluetooth discoverable for other devices.
     */
     public void makeDiscoverable() {
@@ -259,7 +259,7 @@ public class BluetoothController {
         }
     }
 
-    /*
+    /**
         Start scan for Bluetooth devices.
         @param: scanPeriod: the time for which the scan will run.
         For each device found, a callback (Broadcast receiver) will be called with device details.
@@ -274,7 +274,7 @@ public class BluetoothController {
         }
     }
 
-    /*
+    /**
         Stop the scan for Bluetooth devices.
      */
     public void stopScan() {
@@ -286,20 +286,21 @@ public class BluetoothController {
         }
     }
 
-    /*
-        Save a Bluetooth device found during a scan in an array.
+    /**
+     * Save a Bluetooth device found during a scan in an array.
+     * @param dv
      */
     public void addDiscoveredBTDevice(BluetoothDevice dv) {
         Log.d(TAG, "addDevice: " + dv.getAddress());
         mBTDevices.add(dv);
     }
 
-    /*
+    /**
         Check whether the Bluetooth is scanning or not.
      */
     public boolean isScanning() { return this.mScanning; }
 
-    /*
+    /**
         List the paired Bluetooth devices.
      */
     public void listPairedDevices() {
@@ -320,7 +321,7 @@ public class BluetoothController {
         }
     }
 
-    /*
+    /**
         Given a MAC address returns the Bluetooth device object for that MAC.
         @param: MAC: MAC address
      */
@@ -344,7 +345,7 @@ public class BluetoothController {
 //        }
     }
 
-    /*
+    /**
         Given a MAC address, pair with a Bluetooth device with this MAC address.
         @param: deviceMAC: MAC address of the device we want to pair with.
      */
@@ -388,36 +389,38 @@ public class BluetoothController {
     }
 
 
-    /*
+    /**
         Start the Bluetooth connection as the server, that a client can connect to
      */
     public void startAsServer(){
         myBluetoothService.startServer();
     }
 
-    /*
+    /**
         Stop the running Bluetooth server if any.
      */
     public void stopServer() {
         myBluetoothService.stopServer();
     }
 
-    /*
-        Start the Bluetooth connection as the client, which connects to remote servers.
+    /**
+     * Start the Bluetooth connection as the client, which connects to remote servers.
+     * @param remoteMac
      */
     public void startAsClient(String remoteMac) {
         myBluetoothService.startClient(findBTDeviceByMac(remoteMac));
     }
 
-    /*
+    /**
         Stop the Bluetooth client connection if any.
      */
     public void stopClient(){
         myBluetoothService.stopClient();
     }
 
-    /*
-        Send data (write) over any Bluetooth connection that is running.
+    /**
+     * Send data (write) over any Bluetooth connection that is running.
+     * @param data
      */
     public void sendData(byte [] data) {
         if (data.length > 0) {

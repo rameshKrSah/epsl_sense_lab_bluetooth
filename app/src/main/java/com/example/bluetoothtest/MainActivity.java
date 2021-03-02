@@ -216,14 +216,19 @@ public class MainActivity extends AppCompatActivity{
         super.onDestroy();
     }
 
-    // Function to set the text of statusText UI element
+    /**
+     * set the text of statusText UI element
+     * @param newText
+     */
     public void setStatusText(String newText) {
         String oldText = (String) statusText.getText();
         String total = newText + "\n" + oldText;
         statusText.setText(total);
     }
 
-    // Function that initiates the Bluetooth connection to a server
+    /**
+     * initiates the Bluetooth connection to a server
+     */
     private void startClient() {
         Log.d(TAG, "startConnection: Starting the RFCOMM BT connection");
         // Get the Bluetooth Device for the server MAC
@@ -236,7 +241,9 @@ public class MainActivity extends AppCompatActivity{
         }
     }
 
-    // Function that stops the Bluetooth connection to a server
+    /**
+     * Stops the Bluetooth connection to a server
+     */
     private void stopClient() {
         Log.d(TAG, "stopClient: Stopping the Bluetooth client");
         if(myBluetoothController.isBTAvailable() && myBluetoothController.isBTEnabled()) {
@@ -244,7 +251,9 @@ public class MainActivity extends AppCompatActivity{
         }
     }
 
-    // Function to send dummy data over Bluetooth
+    /**
+     * Function to send dummy data over Bluetooth
+     */
     private void sendData() {
         if(true) {
             final String text = "Testing Bluetooth Data Transmission";

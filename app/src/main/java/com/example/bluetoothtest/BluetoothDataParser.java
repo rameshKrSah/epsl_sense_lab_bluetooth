@@ -181,11 +181,21 @@ public class BluetoothDataParser {
         }
     }
 
+    /**
+     * Get int value for the given byte value
+     * @param byte
+     * @return int
+     */
     int getIntFromByte(byte b) {
 //        return b < 0 ? b + 256 : b;
         return ((int) b) & 0xff;
     }
 
+    /**
+     * Get long for the given byte value
+     * @param byte
+     * @return long
+     */
     long getLongFromInt(byte b) {
        return ((long) b) & 0xffL;
     }
@@ -356,7 +366,6 @@ public class BluetoothDataParser {
             _currentImagePacketNumber = 0;
         }
     }
-//    }
 
     /**
      * Prepare the response for Bluetooth requests.
@@ -455,7 +464,7 @@ public class BluetoothDataParser {
 
 
     /**
-     * AsyncTask to save the photo in the memory.
+     * AsyncTask to save the photo in the memory
      */
     class SavePhotoTask extends AsyncTask<Object, String, String> {
         @Override
